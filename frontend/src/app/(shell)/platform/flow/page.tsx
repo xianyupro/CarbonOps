@@ -106,7 +106,7 @@ function buildPorts(comp: ComponentDef, height: number) {
       left: {
         position: {
           name: "line",
-          args: { from: { x: 0, y: 48 }, to: { x: 0, y: Math.max(60, height - 12) } },
+          args: { start: { x: 0, y: 48 }, end: { x: 0, y: Math.max(60, height - 12) } },
         },
         attrs: {
           circle: { magnet: true, strokeWidth: 1.5 },
@@ -116,7 +116,7 @@ function buildPorts(comp: ComponentDef, height: number) {
       right: {
         position: {
           name: "line",
-          args: { from: { x: NODE_W, y: 26 }, to: { x: NODE_W, y: Math.max(60, height - 12) } },
+          args: { start: { x: NODE_W, y: 26 }, end: { x: NODE_W, y: Math.max(60, height - 12) } },
         },
         attrs: {
           circle: { magnet: true, strokeWidth: 1.5 },
@@ -261,7 +261,7 @@ export default function FlowEditorPage() {
         anchor: "center",
         connectionPoint: "anchor",
         highlight: true,
-        connector: { name: "orth" },
+        connector: { name: "rounded" },  // 直角圆角（X6 内置：jumpover/loop/normal/rounded/smooth）
         createEdge() {
           return graph.createEdge({
             shape: "edge",
