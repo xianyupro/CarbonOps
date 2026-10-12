@@ -71,6 +71,7 @@ import type {
   KgPathResult,
   ComponentDef,
   ComponentRegistry,
+  ScreenConfigItem,
   FlowGraph,
   FlowProject,
   FlowRun,
@@ -397,6 +398,10 @@ export const api = {
     query: (body: QueryPayload) =>
       request<TimeSeriesResult[]>("POST", "/data/query", { body }),
     latest: (pointIds: number[]) =>
+      request<
+        { pointId: number; value: number | null; valueText?: string | null; timestamp: string | null; quality: string }[]
+      >("GET", "/data/latest", { query: { point_ids: pointIds.join(",") } }),
+    latest: (pointIds: number[]) =>
       request<LatestValue[]>("GET", "/data/latest", {
         query: { point_ids: pointIds.join(",") },
       }),
@@ -533,6 +538,15 @@ export const api = {
     run: (id: number) =>
       request<FlowRun>("POST", `/flows/${id}/run`, { body: { mode: "once" } }),
     runs: (id: number) => request<FlowRun[]>("GET", `/flows/${id}/runs`),
+  },
+
+  screens: {
+    list: () => request<ScreenConfigItem[]>("GET", "/screens"),
+    create: (body: { name: string; layout: Record<string, unknown> }) =>
+      request<ScreenConfigItem>("POST", "/screens", { body }),
+    update: (id: number, body: { name: string; layout: Record<string, unknown> }) =>
+      request<ScreenConfigItem>("PUT", `/screens/${id}`, { body }),
+    delete: (id: number) => request<void>("DELETE", `/screens/${id}`),
   },
 
   scenarios: {

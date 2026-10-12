@@ -58,6 +58,24 @@ export const navConfig: NavGroup[] = [
     ],
   },
   {
+    title: "驾驶舱中心",
+    items: [
+      {
+        label: "数字孪生",
+        href: "/cockpit/twin",
+        icon: Boxes,
+        permission: "model:read",
+      },
+      {
+        label: "自定义大屏",
+        href: "/cockpit/screen",
+        icon: PenTool,
+        permission: "studio:read",
+        anyPermission: ["model:read"],
+      },
+    ],
+  },
+  {
     title: "运行与场景",
     items: [
       {

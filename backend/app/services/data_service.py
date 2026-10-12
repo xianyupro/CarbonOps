@@ -198,14 +198,17 @@ def latest_values(db: Session, point_ids: list[int]) -> list[dict]:
     out: list[dict] = []
     for pid in point_ids:
         stmt = (
-            select(TimeSeries.timestamp, TimeSeries.value, TimeSeries.quality)
+            select(TimeSeries.timestamp, TimeSeries.value, TimeSeries.quality, TimeSeries.value_text)
             .where(TimeSeries.point_id == pid)
             .order_by(TimeSeries.timestamp.desc())
             .limit(1)
         )
         r = db.execute(stmt).first()
         if r:
-            out.append({"pointId": pid, "value": r[1], "timestamp": r[0], "quality": r[2]})
+            out.append({
+                "pointId": pid, "value": r[1], "timestamp": r[0], "quality": r[2],
+                "valueText": r[3],
+            })
         else:
             out.append({"pointId": pid, "value": None, "timestamp": None, "quality": "MISSING"})
     return out

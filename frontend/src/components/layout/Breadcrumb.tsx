@@ -21,6 +21,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   system: "系统管理",
   studio: "组态开发",
   platform: "组件平台",
+  cockpit: "驾驶舱中心",
 };
 
 export function Breadcrumb() {

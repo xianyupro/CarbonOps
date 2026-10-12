@@ -939,3 +939,13 @@ export interface FlowRun {
   nodeLogs?: FlowNodeLog[] | null;
   error?: string | null;
 }
+
+// ===================== 驾驶舱中心 · 自定义大屏 =====================
+
+export interface ScreenConfigItem {
+  id: number;
+  name: string;
+  layout?: Record<string, unknown> | null;
+  updatedAt: string;
+  createdAt: string;
+}

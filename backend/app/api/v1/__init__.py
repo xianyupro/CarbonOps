@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth, data_sources, data_imports, data_points, data_query, data_quality,
     dashboard, users, model_lib, metamodels, kg, scenarios, alarms, studio,
-    flows,
+    flows, screens,
 )
 
 router = APIRouter()
@@ -19,6 +19,7 @@ router.include_router(model_lib.router, prefix="/models", tags=["模型库"])
 router.include_router(metamodels.router, prefix="/metamodels", tags=["数据基座-元模型"])
 router.include_router(kg.router, prefix="/kg", tags=["元模型平台-知识图谱"])
 router.include_router(flows.router, prefix="/flows", tags=["组件平台-控制流"])
+router.include_router(screens.router, prefix="/screens", tags=["驾驶舱-大屏"])
 router.include_router(scenarios.router, prefix="/scenarios", tags=["行业场景"])
 router.include_router(alarms.router, prefix="/alarms", tags=["告警中心"])
 router.include_router(studio.router, prefix="/forms", tags=["组态开发"])
