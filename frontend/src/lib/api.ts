@@ -62,6 +62,13 @@ import type {
   MetamodelPayload,
   MetamodelQuery,
   MetamodelVersion,
+  KgCategory,
+  KgEdge,
+  KgGraph,
+  KgNode,
+  KgNodeCreatePayload,
+  KgNodeDetail,
+  KgPathResult,
   Alarm,
   AlarmQuery,
   FormConfig,
@@ -481,6 +488,28 @@ export const api = {
       if (modelType) qs.set("modelType", modelType);
       return `${buildUrl("/metamodels/export")}?${qs.toString()}`;
     },
+  },
+
+  kg: {
+    graph: () => request<KgGraph>("GET", "/kg/graph"),
+    categories: () => request<KgCategory[]>("GET", "/kg/categories"),
+    search: (q: string) => request<KgNode[]>("GET", "/kg/search", { query: { q } }),
+    nodeDetail: (id: number) => request<KgNodeDetail>("GET", `/kg/node/${id}/detail`),
+    createNode: (body: KgNodeCreatePayload) => request<KgNode>("POST", "/kg/nodes", { body }),
+    updateNode: (id: number, body: Partial<KgNodeCreatePayload>) =>
+      request<KgNode>("PUT", `/kg/nodes/${id}`, { body }),
+    deleteNode: (id: number) => request<void>("DELETE", `/kg/nodes/${id}`),
+    createEdge: (body: { sourceNodeId: number; targetNodeId: number; relationType: string; weight?: number }) =>
+      request<KgEdge>("POST", "/kg/edges", { body }),
+    deleteEdge: (id: number) => request<void>("DELETE", `/kg/edges/${id}`),
+    path: (source: number, target: number) =>
+      request<KgPathResult>("GET", "/kg/path", { query: { source, target } }),
+    aiStatus: () =>
+      request<{ available: boolean; model: string }>("GET", "/kg/ai/status"),
+    extract: (text: string) =>
+      request<{ nodesCreated: number; edgesCreated: number }>("POST", "/kg/extract", {
+        body: { text },
+      }),
   },
 
   scenarios: {

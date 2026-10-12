@@ -12,6 +12,7 @@ from .data import (  # noqa: F401
 )
 from .model_lib import ModelRegistry, ModelVersion, ModelCall  # noqa: F401
 from .metamodel import Metamodel, MetamodelVersion  # noqa: F401
+from .kg import KgNode, KgEdge, KgLink  # noqa: F401
 from .platform import Scenario, Alarm, FormConfig  # noqa: F401
 
 __all__ = [
@@ -32,6 +33,9 @@ __all__ = [
     "ModelCall",
     "Metamodel",
     "MetamodelVersion",
+    "KgNode",
+    "KgEdge",
+    "KgLink",
     "Scenario",
     "Alarm",
     "FormConfig",

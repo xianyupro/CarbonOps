@@ -128,6 +128,12 @@ export const navConfig: NavGroup[] = [
         icon: Network,
         permission: "model:read",
       },
+      {
+        label: "知识图谱",
+        href: "/metamodel/graph",
+        icon: Workflow,
+        permission: "model:read",
+      },
     ],
   },
   {

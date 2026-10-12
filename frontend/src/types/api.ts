@@ -760,3 +760,74 @@ export interface MetamodelFacets {
 export interface MetamodelPayload extends Partial<Metamodel> {
   initialChangelog?: string;
 }
+
+// ===================== 元模型平台 · 知识图谱 =====================
+
+export interface KgNode {
+  id: number;
+  name: string;
+  description?: string | null;
+  category: string;
+  properties?: Record<string, unknown> | null;
+  sourceType: "manual" | "ai" | "migration" | "derived";
+  sourceText?: string | null;
+  sourceLocation?: string | null;
+  refType?: string | null;
+  refId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface KgEdge {
+  id: number;
+  sourceNodeId: number;
+  targetNodeId: number;
+  relationType: string;
+  weight: number;
+}
+
+export interface KgGraph {
+  nodes: KgNode[];
+  edges: KgEdge[];
+}
+
+export interface KgLink {
+  id: number;
+  nodeId: number;
+  linkType: string;
+  linkId: number;
+  description?: string | null;
+}
+
+export interface KgNodeDetail {
+  node: KgNode;
+  outgoing: KgEdge[];
+  incoming: KgEdge[];
+  neighbors: KgNode[];
+  links: KgLink[];
+}
+
+export interface KgCategory {
+  value: string;
+  count: number;
+}
+
+export interface KgPathResult {
+  found: boolean;
+  nodes: KgNode[];
+  edges: KgEdge[];
+}
+
+export interface KgExtractResult {
+  nodesCreated: number;
+  edgesCreated: number;
+  nodes: KgNode[];
+  edges: KgEdge[];
+}
+
+export interface KgNodeCreatePayload {
+  name: string;
+  category: string;
+  description?: string;
+  sourceText?: string;
+}

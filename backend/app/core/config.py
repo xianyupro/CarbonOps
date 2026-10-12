@@ -30,6 +30,11 @@ class Settings(BaseSettings):
 
     # Mock
     SEED_ON_STARTUP: bool = True
+
+    # Knowledge-graph AI extraction (DeepSeek, OpenAI-compatible)
+    DEEPSEEK_API_KEY: str = ""
+    DEEPSEEK_BASE_URL: str = "https://api.deepseek.com/v1"
+    DEEPSEEK_MODEL: str = "deepseek-chat"
     TS_BACKFILL_DAYS: int = 7
     TS_BACKFILL_INTERVAL_SECONDS: int = 60
     WS_PUSH_INTERVAL_SECONDS: int = 5
