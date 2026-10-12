@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
-import type { KgNode, KgPathResult } from "@/types/api";
+import type { KgEdge, KgNode, KgPathResult } from "@/types/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Sheet, SheetContent } from "@/components/ui/sheet";

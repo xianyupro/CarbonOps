@@ -11,6 +11,8 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Graph } from "@antv/x6";
 import type { Edge as X6Edge, Node as X6Node } from "@antv/x6";
+import { Snapline } from "@antv/x6-plugin-snapline";
+import { MiniMap } from "@antv/x6-plugin-minimap";
 import {
   Clock,
   Loader2,
@@ -50,10 +52,6 @@ interface EditorNodeData extends Record<string, unknown> {
   color: string;
   params: Record<string, unknown>;
   bindings: Record<string, string>;
-}
-
-function nodeLabel(comp: ComponentDef) {
-  return comp.name;
 }
 
 /** 组件 → X6 端口配置（控制口在上/下，数据口在左/右 —— 纵向控制流、横向数据流） */
@@ -119,6 +117,8 @@ function buildPorts(comp: ComponentDef) {
 
 function createFlowNode(comp: ComponentDef, x: number, y: number, id: string): X6Node.Metadata {
   const color = comp.uiConfig?.color ?? "#475569";
+  const kindLabel =
+    comp.kind === "condition" ? "分支" : comp.kind === "circulate" ? "循环" : "单步";
   return {
     id,
     shape: "rect",
@@ -126,23 +126,47 @@ function createFlowNode(comp: ComponentDef, x: number, y: number, id: string): X
     y,
     width: NODE_W,
     height: NODE_H,
+    // 自定义 markup：左侧品牌色条 + 主名称 + 类别副标题（对齐 ApexMotion 节点卡）
+    markup: [
+      { tagName: "rect", selector: "body" },
+      { tagName: "rect", selector: "bar" },
+      { tagName: "text", selector: "label" },
+      { tagName: "text", selector: "sub" },
+    ],
     attrs: {
       body: {
         fill: "#ffffff",
-        stroke: color + "88",
-        strokeWidth: 1.4,
+        stroke: color + "77",
+        strokeWidth: 1.3,
         rx: 10,
         ry: 10,
+        filter: "drop-shadow(0 2px 6px rgba(15,23,42,0.10))",
+      },
+      bar: {
+        x: 5,
+        y: 8,
+        width: 3.5,
+        height: NODE_H - 16,
+        rx: 2,
+        ry: 2,
+        fill: color,
       },
       label: {
-        text: nodeLabel(comp),
+        text: comp.name,
+        x: 16,
+        y: 21,
         fill: "#1e293b",
         fontSize: 12,
         fontWeight: 600,
-        refX: "50%",
-        refY: "50%",
-        textAnchor: "middle",
-        textVerticalAnchor: "middle",
+        textAnchor: "start",
+      },
+      sub: {
+        text: `${comp.category} · ${kindLabel}`,
+        x: 16,
+        y: 38,
+        fill: "#94a3b8",
+        fontSize: 9,
+        textAnchor: "start",
       },
     },
     ports: buildPorts(comp),
@@ -160,6 +184,7 @@ function createFlowNode(comp: ComponentDef, x: number, y: number, id: string): X
 
 export default function FlowEditorPage() {
   const containerRef = React.useRef<HTMLDivElement>(null);
+  const minimapRef = React.useRef<HTMLDivElement>(null);
   const graphRef = React.useRef<Graph | null>(null);
   const [registry, setRegistry] = React.useState<ComponentRegistry | null>(null);
   const [metamodels, setMetamodels] = React.useState<MetamodelOption[]>([]);
@@ -197,7 +222,7 @@ export default function FlowEditorPage() {
   React.useEffect(() => {
     if (!containerRef.current || graphRef.current) return;
 
-    const graph = new Graph({
+    const graph: Graph = new Graph({
       container: containerRef.current,
       background: { color: "#f8fafc" },
       grid: { size: 20, type: "dot", args: { color: "#cbd5e1", thickness: 1 } },
@@ -229,12 +254,24 @@ export default function FlowEditorPage() {
         },
       },
     });
+    // 对齐线 + 小地图（编辑体验对齐 ApexMotion）
+    graph.use(new Snapline({ enabled: true }));
+    if (minimapRef.current) {
+      graph.use(
+        new MiniMap({
+          container: minimapRef.current,
+          width: 168,
+          height: 104,
+          padding: 8,
+        })
+      );
+    }
     graphRef.current = graph;
 
     graph.on("edge:connected", ({ isNew, edge }: { isNew: boolean; edge: X6Edge }) => {
       if (!isNew) return;
-      const sourcePort = edge.getSourcePortId();
-      const targetPort = edge.getTargetPortId();
+      const sourcePort = edge.getSourcePortId() ?? "";
+      const targetPort = edge.getTargetPortId() ?? "";
       const isControl =
         sourcePort === "next" || ["true", "false", "loop", "exit"].includes(sourcePort);
       // 数据边单绑定：目标输入口已有连线时替换旧线（ApexMotion 语义）
@@ -455,7 +492,7 @@ export default function FlowEditorPage() {
   /** 可绑定源：当前节点的上游节点及其输出 */
   const bindingCandidates = React.useMemo(() => {
     if (!selectedNode || !graphRef.current) return [] as { nodeId: string; nodeName: string; outputs: { key: string; label: string }[] }[];
-    const incoming = graphRef.current.getNeighborNodes(selectedNode, { incoming: true }) ?? [];
+    const incoming = (graphRef.current.getNeighbors(selectedNode, { incoming: true }) ?? []) as X6Node[];
     return incoming.map((n: X6Node) => {
       const d = n.getData<EditorNodeData>();
       const comp = compByCode.get(d?.componentCode ?? "");
@@ -537,7 +574,13 @@ export default function FlowEditorPage() {
             </Button>
           </div>
         </div>
-        <div ref={containerRef} className="min-h-0 flex-1" />
+        <div className="relative min-h-0 flex-1">
+          <div ref={containerRef} className="h-full" />
+          <div
+            ref={minimapRef}
+            className="absolute bottom-2.5 right-2.5 z-10 overflow-hidden rounded-md border border-border bg-white/95 shadow-md"
+          />
+        </div>
       </div>
 
       {/* ===== 右侧：参数 / 运行 ===== */}

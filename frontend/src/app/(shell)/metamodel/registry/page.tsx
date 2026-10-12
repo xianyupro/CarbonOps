@@ -24,6 +24,7 @@ import { api } from "@/lib/api";
 import type {
   Metamodel,
   MetamodelDetail,
+  MetamodelFacets,
   MetamodelIoParam,
   MetamodelPayload,
   MetamodelRelation,
@@ -117,6 +118,7 @@ export default function MetamodelRegistryPage() {
   const [form, setForm] = React.useState<MetamodelPayload>(emptyForm("MECHANISM"));
   const [editing, setEditing] = React.useState<Metamodel | null>(null);
   const [list, setList] = React.useState<Metamodel[]>([]);
+  const [facets, setFacets] = React.useState<MetamodelFacets | null>(null);
   const [saving, setSaving] = React.useState(false);
 
   const loadList = React.useCallback(async () => {
@@ -130,7 +132,10 @@ export default function MetamodelRegistryPage() {
 
   React.useEffect(() => {
     loadList();
+    api.metamodels.facets().then(setFacets).catch(() => {});
   }, [loadList]);
+
+  const typeCount = (t: string) => facets?.modelType.find((b) => b.value === t)?.count ?? 0;
 
   function set<K extends keyof MetamodelPayload>(key: K, value: MetamodelPayload[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -195,6 +200,24 @@ export default function MetamodelRegistryPage() {
         <p className="mt-1 text-sm text-muted-foreground">
           按《元模型交付模板》八节结构登记机理 / 数据 / 算法 / 知识规则四类元模型
         </p>
+      </div>
+
+      {/* 资产总览 */}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        {MODEL_TYPES.map((t) => (
+          <div
+            key={t.value}
+            className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+              modelType === t.value ? "border-primary bg-accent" : "border-border bg-card"
+            }`}
+          >
+            <div>
+              <p className="text-xs text-muted-foreground">{t.label}</p>
+              <p className="mt-0.5 text-xl font-semibold tabular-nums">{typeCount(t.value)}</p>
+            </div>
+            <span className="text-[10px] tracking-wider text-muted-foreground/60">已登记</span>
+          </div>
+        ))}
       </div>
 
       {/* 四类模型选择 */}

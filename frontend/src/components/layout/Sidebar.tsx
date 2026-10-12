@@ -3,6 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { ChevronRight } from "lucide-react";
 import { navConfig } from "@/lib/nav";
 import { useAuthStore } from "@/stores/auth-store";
 import { LogoMark } from "@/components/layout/Topbar";
@@ -62,16 +63,33 @@ export function Sidebar() {
         </div>
       </div>
 
+      {/* 四层递进架构进度条 */}
+      <div className="relative flex items-center gap-1 border-b border-primary/10 px-5 py-2 text-[9px] tracking-wide text-sidebar-foreground/50">
+        <span className="font-cyber">数据</span>
+        <ChevronRight className="h-2.5 w-2.5 text-primary/50" />
+        <span className="font-cyber">元模型</span>
+        <ChevronRight className="h-2.5 w-2.5 text-primary/50" />
+        <span className="font-cyber">组件</span>
+        <ChevronRight className="h-2.5 w-2.5 text-primary/50" />
+        <span className="font-cyber text-primary/80">驾驶舱</span>
+      </div>
+
       {/* 导航 */}
       <nav className="scrollbar-thin relative flex-1 overflow-y-auto px-3 py-4">
         <ul className="space-y-5">
           {visibleGroups.map((group, gi) => (
             <li key={gi}>
               {group.title ? (
-                <div className="mb-2 flex items-center gap-2 px-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-sidebar-foreground/45">
-                  <span className="h-px flex-1 bg-gradient-to-r from-primary/40 to-transparent" />
-                  {group.title}
-                  <span className="h-px w-3 bg-primary/40" />
+                <div className="mb-2 flex items-center gap-2 px-1.5">
+                  {group.badge ? (
+                    <span className="flex h-[18px] w-[18px] shrink-0 items-center justify-center rounded-[5px] bg-primary/15 text-[10px] font-bold leading-none text-primary ring-1 ring-primary/30">
+                      {group.badge}
+                    </span>
+                  ) : null}
+                  <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-sidebar-foreground/70">
+                    {group.title}
+                  </span>
+                  <span className="h-px flex-1 bg-gradient-to-r from-primary/30 to-transparent" />
                 </div>
               ) : null}
               <ul className="space-y-0.5">

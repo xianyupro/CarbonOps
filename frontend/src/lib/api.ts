@@ -398,10 +398,6 @@ export const api = {
     query: (body: QueryPayload) =>
       request<TimeSeriesResult[]>("POST", "/data/query", { body }),
     latest: (pointIds: number[]) =>
-      request<
-        { pointId: number; value: number | null; valueText?: string | null; timestamp: string | null; quality: string }[]
-      >("GET", "/data/latest", { query: { point_ids: pointIds.join(",") } }),
-    latest: (pointIds: number[]) =>
       request<LatestValue[]>("GET", "/data/latest", {
         query: { point_ids: pointIds.join(",") },
       }),

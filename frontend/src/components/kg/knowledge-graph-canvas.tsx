@@ -11,14 +11,10 @@ import dynamic from "next/dynamic";
 import type { KgEdge, KgNode } from "@/types/api";
 import { categoryColor } from "./category-colors";
 
+// react-force-graph 的官方类型与我们的节点扩展类型不兼容，运行时无碍，统一放宽
 const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
   ssr: false,
-  loading: () => (
-    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-      正在加载图谱引擎…
-    </div>
-  ),
-});
+}) as unknown as React.ComponentType<Record<string, unknown>>;
 
 export interface GraphNode extends KgNode {
   val?: number;
@@ -105,7 +101,7 @@ export function KnowledgeGraphCanvas({
     if (focusNodeId == null) return;
     const n = nodes.find((x) => x.id === focusNodeId);
     if (n && n.x != null && n.y != null && fgRef.current) {
-      fgRef.current.centerAt(n.x, n.y, 600);
+      fgRef.current.centerAt(n.x, n.y);
       fgRef.current.zoom(2.2, 600);
     }
     onFocusHandled?.();
@@ -136,7 +132,7 @@ export function KnowledgeGraphCanvas({
       nodeLabel={(n: GraphNode) =>
         `${n.name}\n${n.category}${n.description ? "\n" + n.description.slice(0, 60) : ""}`
       }
-      nodeCanvasObject={(node: GraphNode, ctx, globalScale) => {
+      nodeCanvasObject={(node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
         const r = 4 + Math.sqrt(node.val ?? 1) * 1.8;
         const color = node.color ?? categoryColor(node.category);
         const dim = isDimmed(node.id);

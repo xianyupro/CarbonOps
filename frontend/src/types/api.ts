@@ -289,6 +289,8 @@ export type DataQuality = "GOOD" | "BAD" | "MISSING";
 export interface LatestValue {
   pointId: number;
   value: number | null;
+  /** 非数值型采样（ARRAY 曲线等）的原始文本 */
+  valueText?: string | null;
   timestamp: string | null;
   quality: DataQuality;
 }

@@ -11,10 +11,11 @@ import {
   Factory,
   Users,
   ScrollText,
-  PlusCircle,
   Cloud,
   Network,
   FilePlus2,
+  Waypoints,
+  PanelsTopLeft,
 } from "lucide-react";
 
 export interface NavItem {
@@ -26,87 +27,29 @@ export interface NavItem {
   icon: LucideIcon;
   /** Permission code required to view this item. Empty = visible to everyone. */
   permission?: string;
-  /**
-   * Alternate accepted permission codes — item is shown if the user has the
-   * primary permission OR any of these.
-   */
+  /** Alternate accepted permission codes — shown if primary OR any of these. */
   anyPermission?: string[];
 }
 
 export interface NavGroup {
-  /** Optional group title. Empty string = top-level ungrouped item. */
+  /** Group title. */
   title?: string;
+  /** 层级徽标（①②③④），对应四层递进架构。 */
+  badge?: string;
   items: NavItem[];
 }
 
 /**
- * CarbonOps sidebar navigation. 顶部主导航对齐客户 demo 心智模型：
- * 驾驶舱 / 行业场景 / 新增场景 / 云边端资源协同；
- * 现有数据/模型/组态/系统模块作为「资源底座」下移保留，避免破坏现有功能。
- *
+ * CarbonOps 侧边栏 —— 对齐四层递进架构（层层递进，逐层支撑）：
+ * ① 数据基座 → ② 元模型平台 → ③ 组件平台 → ④ 驾驶舱中心；系统管理单列。
  * Routes correspond to file paths under `src/app/(shell)/`.
  */
 export const navConfig: NavGroup[] = [
-  // ====== 顶部主导航（对齐客户 demo）======
   {
+    title: "数据基座",
+    badge: "①",
     items: [
-      {
-        label: "驾驶舱",
-        href: "/dashboard",
-        icon: LayoutDashboard,
-      },
-    ],
-  },
-  {
-    title: "驾驶舱中心",
-    items: [
-      {
-        label: "数字孪生",
-        href: "/cockpit/twin",
-        icon: Boxes,
-        permission: "model:read",
-      },
-      {
-        label: "自定义大屏",
-        href: "/cockpit/screen",
-        icon: PenTool,
-        permission: "studio:read",
-        anyPermission: ["model:read"],
-      },
-    ],
-  },
-  {
-    title: "运行与场景",
-    items: [
-      {
-        label: "行业场景",
-        href: "/scenarios",
-        icon: Factory,
-        permission: "scenario:read",
-      },
-      {
-        label: "新增场景",
-        href: "/scenarios/new",
-        icon: PlusCircle,
-        permission: "scenario:read",
-      },
-      {
-        label: "云边端资源协同",
-        href: "/cloud-edge",
-        icon: Cloud,
-      },
-    ],
-  },
-  // ====== 资源底座（保留现有能力）======
-  {
-    title: "数据底座",
-    items: [
-      {
-        label: "数据源",
-        href: "/data/sources",
-        icon: Database,
-        permission: "data:source:read",
-      },
+      { label: "数据源", href: "/data/sources", icon: Database, permission: "data:source:read" },
       {
         label: "离线导入",
         href: "/data/imports",
@@ -128,34 +71,31 @@ export const navConfig: NavGroup[] = [
         permission: "data:quality:read",
         anyPermission: ["data:source:read"],
       },
+      {
+        label: "云边端协同",
+        href: "/cloud-edge",
+        icon: Cloud,
+      },
     ],
   },
   {
-    title: "元模型中心",
+    title: "元模型平台",
+    badge: "②",
     items: [
       {
-        label: "登记录入",
+        label: "元模型登记",
         href: "/metamodel/registry",
         icon: FilePlus2,
         permission: "model:write",
         anyPermission: ["model:read"],
       },
-      {
-        label: "元模型库",
-        href: "/metamodel/library",
-        icon: Network,
-        permission: "model:read",
-      },
-      {
-        label: "知识图谱",
-        href: "/metamodel/graph",
-        icon: Workflow,
-        permission: "model:read",
-      },
+      { label: "元模型库", href: "/metamodel/library", icon: Network, permission: "model:read" },
+      { label: "知识图谱", href: "/metamodel/graph", icon: Waypoints, permission: "model:read" },
     ],
   },
   {
     title: "组件平台",
+    badge: "③",
     items: [
       {
         label: "控制流编排",
@@ -164,29 +104,30 @@ export const navConfig: NavGroup[] = [
         permission: "orchestration:read",
         anyPermission: ["model:read"],
       },
+      { label: "组态开发", href: "/studio", icon: PenTool, permission: "studio:read" },
+    ],
+  },
+  {
+    title: "驾驶舱中心",
+    badge: "④",
+    items: [
+      { label: "运行总览", href: "/dashboard", icon: LayoutDashboard },
+      { label: "行业场景", href: "/scenarios", icon: Factory, permission: "scenario:read" },
+      { label: "数字孪生", href: "/cockpit/twin", icon: Boxes, permission: "model:read" },
       {
-        label: "组态开发",
-        href: "/studio",
-        icon: PenTool,
+        label: "自定义大屏",
+        href: "/cockpit/screen",
+        icon: PanelsTopLeft,
         permission: "studio:read",
+        anyPermission: ["model:read"],
       },
     ],
   },
   {
     title: "系统管理",
     items: [
-      {
-        label: "用户",
-        href: "/system/users",
-        icon: Users,
-        permission: "system:user:read",
-      },
-      {
-        label: "操作日志",
-        href: "/system/logs",
-        icon: ScrollText,
-        permission: "system:audit:read",
-      },
+      { label: "用户与权限", href: "/system/users", icon: Users, permission: "system:user:read" },
+      { label: "操作日志", href: "/system/logs", icon: ScrollText, permission: "system:audit:read" },
     ],
   },
 ];

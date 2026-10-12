@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@antv/x6": "^2.18.1",
+    "@antv/x6-plugin-minimap": "^2.0.7",
+    "@antv/x6-plugin-snapline": "^2.1.7",
     "@antv/x6-react-shape": "^2.1.5",
     "@hookform/resolvers": "^3.9.0",
     "@radix-ui/react-avatar": "^1.1.0",
