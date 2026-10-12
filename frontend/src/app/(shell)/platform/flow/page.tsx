@@ -15,6 +15,7 @@ import { Snapline } from "@antv/x6-plugin-snapline";
 import { MiniMap } from "@antv/x6-plugin-minimap";
 import {
   Clock,
+  LayoutGrid,
   Loader2,
   Play,
   Plus,
@@ -43,8 +44,10 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-const NODE_W = 168;
-const NODE_H = 52;
+const NODE_W = 184;
+/** 控制语义端口（决定边的类型与连线规则） */
+const CONTROL_PORTS = new Set(["in", "next", "true", "false", "loop", "exit"]);
+const isControlPort = (portId?: string) => !!portId && CONTROL_PORTS.has(portId);
 
 interface EditorNodeData extends Record<string, unknown> {
   componentCode: string;
@@ -54,60 +57,70 @@ interface EditorNodeData extends Record<string, unknown> {
   bindings: Record<string, string>;
 }
 
-/** 组件 → X6 端口配置（控制口在上/下，数据口在左/右 —— 纵向控制流、横向数据流） */
-function buildPorts(comp: ComponentDef) {
-  const mk = (id: string, group: string, label: string) => ({
+/** 节点高度随端口数自适应（端口标签在节点内部，需要足够行高） */
+function nodeHeight(comp: ComponentDef): number {
+  const leftCount = (comp.refCode !== "start" ? 1 : 0) + (comp.inputs?.length ?? 0);
+  const rightCount =
+    (comp.kind === "single" && comp.refCode !== "end" ? 1 : 0) +
+    (comp.kind === "condition" ? 2 : 0) +
+    (comp.kind === "circulate" ? 2 : 0) +
+    (comp.outputs?.length ?? 0);
+  return Math.max(58, Math.max(leftCount, rightCount, 2) * 20 + 28);
+}
+
+/**
+ * 组件 → X6 端口。对齐 ApexMotion：端口=参数，左右两侧分布，
+ * 标签置于节点内部（左端口标签在右、右端口标签在左）。
+ */
+function buildPorts(comp: ComponentDef, height: number) {
+  const mk = (id: string, label: string, control: boolean, side: "left" | "right") => ({
     id,
-    group,
-    attrs: { text: { text: label } },
+    group: side,
+    attrs: {
+      circle: control
+        ? { stroke: "#0d9488", fill: side === "right" ? "#0d9488" : "#ffffff", r: 5 }
+        : { stroke: "#2563eb", fill: side === "right" ? "#2563eb" : "#ffffff", r: 4.5 },
+      text: { text: label },
+    },
+    label: {
+      position: side === "left" ? { name: "right", args: { dx: 6 } } : { name: "left", args: { dx: -6 } },
+    },
   });
+
   const items: ReturnType<typeof mk>[] = [];
-  if (comp.refCode !== "start") items.push(mk("in", "controlIn", ""));
-  for (const p of comp.inputs ?? []) items.push(mk(p.key, "in", p.label));
-  if (comp.kind === "single" && comp.refCode !== "end") items.push(mk("next", "controlOut", ""));
+  if (comp.refCode !== "start") items.push(mk("in", "", true, "left"));
+  for (const pin of comp.inputs ?? []) items.push(mk(pin.key, pin.label, false, "left"));
+  if (comp.kind === "single" && comp.refCode !== "end") items.push(mk("next", "", true, "right"));
   if (comp.kind === "condition") {
-    items.push(mk("true", "controlOut", "真"));
-    items.push(mk("false", "controlOut", "假"));
+    items.push(mk("true", "真", true, "right"));
+    items.push(mk("false", "假", true, "right"));
   }
   if (comp.kind === "circulate") {
-    items.push(mk("loop", "controlOut", "循环"));
-    items.push(mk("exit", "controlOut", "退出"));
+    items.push(mk("loop", "循环", true, "right"));
+    items.push(mk("exit", "退出", true, "right"));
   }
-  for (const o of comp.outputs ?? []) items.push(mk(o.key, "out", o.label));
+  for (const o of comp.outputs ?? []) items.push(mk(o.key, o.label, false, "right"));
+
   return {
     groups: {
-      controlIn: {
-        position: { name: "top" },
+      left: {
+        position: {
+          name: "line",
+          args: { from: { x: 0, y: 48 }, to: { x: 0, y: Math.max(60, height - 12) } },
+        },
         attrs: {
-          circle: { r: 5, magnet: true, stroke: "#0d9488", fill: "#ffffff", strokeWidth: 1.6 },
-          text: { display: "none" },
+          circle: { magnet: true, strokeWidth: 1.5 },
+          text: { fill: "#64748b", fontSize: 9, textAnchor: "start" },
         },
       },
-      controlOut: {
-        position: { name: "bottom" },
-        attrs: {
-          circle: { r: 5, magnet: true, stroke: "#0d9488", fill: "#0d9488", strokeWidth: 1.6 },
-          text: {
-            display: "block",
-            fill: "#64748b",
-            fontSize: 9,
-            position: "bottom" as const,
-            offset: { y: 6 },
-          },
+      right: {
+        position: {
+          name: "line",
+          args: { from: { x: NODE_W, y: 26 }, to: { x: NODE_W, y: Math.max(60, height - 12) } },
         },
-      },
-      in: {
-        position: { name: "left" },
         attrs: {
-          circle: { r: 4.5, magnet: true, stroke: "#2563eb", fill: "#ffffff", strokeWidth: 1.4 },
-          text: { display: "block", fill: "#64748b", fontSize: 9, position: "left" as const, offset: { x: -4 } },
-        },
-      },
-      out: {
-        position: { name: "right" },
-        attrs: {
-          circle: { r: 4.5, magnet: true, stroke: "#2563eb", fill: "#2563eb", strokeWidth: 1.4 },
-          text: { display: "block", fill: "#64748b", fontSize: 9, position: "right" as const, offset: { x: 4 } },
+          circle: { magnet: true, strokeWidth: 1.5 },
+          text: { fill: "#64748b", fontSize: 9, textAnchor: "end" },
         },
       },
     },
@@ -115,17 +128,26 @@ function buildPorts(comp: ComponentDef) {
   };
 }
 
+interface EditorNodeData extends Record<string, unknown> {
+  componentCode: string;
+  name: string;
+  color: string;
+  params: Record<string, unknown>;
+  bindings: Record<string, string>;
+}
+
 function createFlowNode(comp: ComponentDef, x: number, y: number, id: string): X6Node.Metadata {
   const color = comp.uiConfig?.color ?? "#475569";
   const kindLabel =
     comp.kind === "condition" ? "分支" : comp.kind === "circulate" ? "循环" : "单步";
+  const height = nodeHeight(comp);
   return {
     id,
     shape: "rect",
     x,
     y,
     width: NODE_W,
-    height: NODE_H,
+    height,
     // 自定义 markup：左侧品牌色条 + 主名称 + 类别副标题（对齐 ApexMotion 节点卡）
     markup: [
       { tagName: "rect", selector: "body" },
@@ -143,33 +165,36 @@ function createFlowNode(comp: ComponentDef, x: number, y: number, id: string): X
         filter: "drop-shadow(0 2px 6px rgba(15,23,42,0.10))",
       },
       bar: {
-        x: 5,
-        y: 8,
+        refX: 5,
+        refY: 8,
         width: 3.5,
-        height: NODE_H - 16,
+        refHeight: height - 16,
         rx: 2,
         ry: 2,
         fill: color,
       },
       label: {
         text: comp.name,
-        x: 16,
-        y: 21,
+        refX: 16,
+        refY: 16,
         fill: "#1e293b",
         fontSize: 12,
         fontWeight: 600,
         textAnchor: "start",
+        textVerticalAnchor: "middle",
       },
       sub: {
         text: `${comp.category} · ${kindLabel}`,
-        x: 16,
-        y: 38,
+        refX: 16,
+        refY: 34,
         fill: "#94a3b8",
         fontSize: 9,
         textAnchor: "start",
+        textVerticalAnchor: "middle",
       },
     },
-    ports: buildPorts(comp),
+    // X6 端口类型对 line 策略的 args 标注不全，运行时支持
+    ports: buildPorts(comp, height) as never,
     data: {
       componentCode: comp.code,
       name: comp.name,
@@ -236,7 +261,7 @@ export default function FlowEditorPage() {
         anchor: "center",
         connectionPoint: "anchor",
         highlight: true,
-        connector: { name: "smooth" },
+        connector: { name: "orth" },
         createEdge() {
           return graph.createEdge({
             shape: "edge",
@@ -247,11 +272,9 @@ export default function FlowEditorPage() {
         },
         validateConnection({ sourcePort, targetPort }) {
           if (!sourcePort || !targetPort) return false;
-          const srcIsControl =
-            sourcePort === "next" || ["true", "false", "loop", "exit"].includes(sourcePort);
           // 规则：控制口 → 控制入口(in)；数据口 → 数据输入口
-          if (srcIsControl) return targetPort === "in";
-          return targetPort !== "in";
+          if (isControlPort(sourcePort)) return targetPort === "in";
+          return !isControlPort(targetPort);
         },
       },
     });
@@ -273,8 +296,7 @@ export default function FlowEditorPage() {
       if (!isNew) return;
       const sourcePort = edge.getSourcePortId() ?? "";
       const targetPort = edge.getTargetPortId() ?? "";
-      const isControl =
-        sourcePort === "next" || ["true", "false", "loop", "exit"].includes(sourcePort);
+      const isControl = isControlPort(sourcePort);
       // 数据边单绑定：目标输入口已有连线时替换旧线（ApexMotion 语义）
       if (!isControl) {
         const incoming = graph.getIncomingEdges(edge.getTargetCellId()) ?? [];
@@ -462,6 +484,47 @@ export default function FlowEditorPage() {
     }
   }
 
+  /** 自动整理布局：按拓扑深度分列，列内按现有 y 排序 */
+  function tidyLayout() {
+    const g = graphRef.current;
+    if (!g) return;
+    const nodes = g.getNodes();
+    const edges = g.getEdges();
+    const depth = new Map<string, number>();
+    nodes.forEach((n) => depth.set(n.id as string, 0));
+    for (let round = 0; round < nodes.length; round++) {
+      let changed = false;
+      for (const e of edges) {
+        const sId = e.getSourceCellId();
+        const tId = e.getTargetCellId();
+        if ((depth.get(tId) ?? 0) < (depth.get(sId) ?? 0) + 1) {
+          depth.set(tId, (depth.get(sId) ?? 0) + 1);
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
+    const cols = new Map<number, X6Node[]>();
+    for (const n of nodes) {
+      const d = Math.min(depth.get(n.id as string) ?? 0, 12);
+      if (!cols.has(d)) cols.set(d, []);
+      cols.get(d)!.push(n);
+    }
+    for (const [, col] of cols) {
+      col.sort((a, b) => a.getPosition().y - b.getPosition().y);
+      col.forEach((n, i) => n.setPosition({ x: 48 + (depth.get(n.id as string) ?? 0) * 230, y: 40 + i * 110 }));
+    }
+    setTimeout(() => {
+      try {
+        g.zoomToFit({ padding: 40, maxScale: 1 });
+        g.centerContent();
+      } catch {
+        /* 忽略 */
+      }
+    }, 80);
+    setDirty(true);
+  }
+
   /** 执行回放：按真实日志顺序在画布上高亮节点（绿=成功，红=失败） */
   async function replayRun() {
     if (!runResult || !graphRef.current) return;
@@ -586,6 +649,9 @@ export default function FlowEditorPage() {
           />
           {dirty && <span className="text-xs text-amber-600">未保存</span>}
           <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={tidyLayout} title="按执行顺序自动排列节点">
+              <LayoutGrid className="mr-1 h-3.5 w-3.5" /> 整理布局
+            </Button>
             <Button size="sm" variant="outline" onClick={handleSave}>
               <Save className="mr-1 h-3.5 w-3.5" /> 保存
             </Button>
