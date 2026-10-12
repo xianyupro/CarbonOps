@@ -20,11 +20,16 @@ import {
 
 import { api } from "@/lib/api";
 import type {
+  KgGraph,
   Metamodel,
   MetamodelDetail,
   MetamodelFacets,
   MetamodelType,
 } from "@/types/api";
+import KnowledgeGraphCanvas, {
+  GraphEdge,
+  GraphNode,
+} from "@/components/kg/knowledge-graph-canvas";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -409,6 +414,9 @@ export default function MetamodelLibraryPage() {
                   ]}
                 />
               </DetailSection>
+              <DetailSection title="关联知识图谱">
+                <MetamodelKgMini metamodelId={detail.id} />
+              </DetailSection>
               {(detail.versions?.length ?? 0) > 0 && (
                 <DetailSection title="八、版本记录">
                   <div className="space-y-1.5">
@@ -428,6 +436,83 @@ export default function MetamodelLibraryPage() {
           )}
         </SheetContent>
       </Sheet>
+    </div>
+  );
+}
+
+/** 元模型关联知识图谱小图：按 refType/refId 找到注册节点，展示一跳邻域 */
+function MetamodelKgMini({ metamodelId }: { metamodelId: number }) {
+  const [data, setData] = React.useState<{
+    nodes: GraphNode[];
+    edges: GraphEdge[];
+    centerName: string;
+  } | null>(null);
+  const [missing, setMissing] = React.useState(false);
+
+  React.useEffect(() => {
+    let stopped = false;
+    api.kg
+      .graph()
+      .then((g: KgGraph) => {
+        if (stopped) return;
+        const center = g.nodes.find(
+          (n) => n.refType === "METAMODEL" && n.refId === metamodelId
+        );
+        if (!center) {
+          setMissing(true);
+          return;
+        }
+        const neighborIds = new Set<number>([center.id]);
+        const edges = g.edges.filter((e) => {
+          if (e.sourceNodeId === center.id) {
+            neighborIds.add(e.targetNodeId);
+            return true;
+          }
+          if (e.targetNodeId === center.id) {
+            neighborIds.add(e.sourceNodeId);
+            return true;
+          }
+          return false;
+        });
+        const nodes = g.nodes.filter((n) => neighborIds.has(n.id));
+        setData({
+          nodes: nodes.map((n) => ({ ...n, color: undefined })),
+          edges: edges.map((e) => ({ ...e, source: e.sourceNodeId, target: e.targetNodeId })),
+          centerName: center.name,
+        });
+      })
+      .catch(() => setMissing(true));
+    return () => {
+      stopped = true;
+    };
+  }, [metamodelId]);
+
+  if (missing) {
+    return (
+      <p className="rounded-md bg-muted/50 px-2.5 py-2 text-xs text-muted-foreground">
+        该元模型尚未注册到知识图谱（在「元模型平台·知识图谱」中按行业自动登记）
+      </p>
+    );
+  }
+  if (!data) {
+    return (
+      <div className="flex h-24 items-center justify-center text-xs text-muted-foreground">
+        图谱加载中…
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-hidden rounded-md border border-border">
+      <KnowledgeGraphCanvas
+        nodes={data.nodes}
+        edges={data.edges}
+        width={496}
+        height={210}
+        selectedNodeId={null}
+      />
+      <p className="border-t border-border bg-muted/40 px-2.5 py-1 text-[10px] text-muted-foreground">
+        「{data.centerName}」的一跳关联 · {data.nodes.length} 节点 / {data.edges.length} 关系
+      </p>
     </div>
   );
 }

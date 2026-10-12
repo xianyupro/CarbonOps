@@ -209,6 +209,7 @@ export default function FlowEditorPage() {
   } | null>(null);
   const [rightTab, setRightTab] = React.useState<"params" | "run">("params");
   const [dirty, setDirty] = React.useState(false);
+  const [activeLog, setActiveLog] = React.useState<string | null>(null);
   const [, force] = React.useState(0);
 
   const compByCode = React.useMemo(() => {
@@ -459,6 +460,26 @@ export default function FlowEditorPage() {
     } finally {
       setRunning(false);
     }
+  }
+
+  /** 执行回放：按真实日志顺序在画布上高亮节点（绿=成功，红=失败） */
+  async function replayRun() {
+    if (!runResult || !graphRef.current) return;
+    const g = graphRef.current;
+    const stroke = (nodeId: string, color: string, width = 1.3) => {
+      const cell = g.getCellById(nodeId);
+      cell?.setAttrByPath("body/stroke", color);
+      cell?.setAttrByPath("body/strokeWidth", width);
+    };
+    for (const log of runResult.logs) stroke(log.nodeId, "#94a3b8");
+    setActiveLog(null);
+    for (const log of runResult.logs) {
+      setActiveLog(log.nodeId);
+      stroke(log.nodeId, log.state === "SUCCESS" ? "#10b981" : "#ef4444", 2.6);
+      await new Promise((r) => setTimeout(r, Math.min(180 + log.durationMs, 520)));
+      stroke(log.nodeId, "#94a3b8");
+    }
+    setActiveLog(null);
   }
 
   function updateSelectedParam(key: string, value: unknown) {
@@ -741,6 +762,9 @@ export default function FlowEditorPage() {
                   <span className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Clock className="h-3 w-3" /> {runResult.durationMs}ms
                   </span>
+                  <Button variant="outline" size="sm" className="ml-auto h-6 px-2 text-[10px]" onClick={replayRun}>
+                    <Play className="mr-1 h-3 w-3" /> 画布回放
+                  </Button>
                 </div>
                 {runResult.error && (
                   <p className="rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">{runResult.error}</p>
@@ -748,8 +772,12 @@ export default function FlowEditorPage() {
                 {runResult.logs.map((log, i) => (
                   <div
                     key={`${log.nodeId}-${i}`}
-                    className={`rounded-md border p-2.5 text-xs ${
-                      log.state === "SUCCESS" ? "border-border" : "border-destructive/50 bg-destructive/5"
+                    className={`rounded-md border p-2.5 text-xs transition-colors ${
+                      activeLog === log.nodeId
+                        ? "border-primary bg-accent"
+                        : log.state === "SUCCESS"
+                          ? "border-border"
+                          : "border-destructive/50 bg-destructive/5"
                     }`}
                   >
                     <div className="flex items-center justify-between">

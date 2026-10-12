@@ -7,7 +7,7 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { Loader2, RefreshCw, Tag } from "lucide-react";
+import { Loader2, Moon, RefreshCw, ScanEye, Tag } from "lucide-react";
 
 import { api } from "@/lib/api";
 import type { DataPoint } from "@/types/api";
@@ -46,6 +46,9 @@ export default function KilnTwinPage() {
   const [telemetry, setTelemetry] = React.useState<KilnTelemetry>(EMPTY);
   const [loading, setLoading] = React.useState(true);
   const [showLabels, setShowLabels] = React.useState(true);
+  const [night, setNight] = React.useState(false);
+  const [xray, setXray] = React.useState(false);
+  const [segment, setSegment] = React.useState<{ index: number; temp: number } | null>(null);
   const pointIdsRef = React.useRef<Partial<Record<keyof KilnTelemetry, number>>>({});
 
   // 1) 解析点位 ID
@@ -134,9 +137,15 @@ export default function KilnTwinPage() {
             1号回转挥发窑三维仿真 · 转速/料流/温度场由现场实时数据驱动（5s 刷新）
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant={showLabels ? "default" : "outline"} size="sm" onClick={() => setShowLabels((v) => !v)}>
             <Tag className="mr-1 h-4 w-4" /> 数据标签
+          </Button>
+          <Button variant={night ? "default" : "outline"} size="sm" onClick={() => setNight((v) => !v)}>
+            <Moon className="mr-1 h-4 w-4" /> 夜间模式
+          </Button>
+          <Button variant={xray ? "default" : "outline"} size="sm" onClick={() => setXray((v) => !v)}>
+            <ScanEye className="mr-1 h-4 w-4" /> 窑内透视
           </Button>
           <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
             <RefreshCw className="mr-1 h-4 w-4" /> 刷新
@@ -158,8 +167,38 @@ export default function KilnTwinPage() {
       </div>
 
       {/* 三维画布 */}
-      <div className="h-[calc(100vh-330px)] min-h-[480px] overflow-hidden rounded-lg border border-border">
-        <KilnTwin telemetry={telemetry} showLabels={showLabels} />
+      <div className="relative h-[calc(100vh-330px)] min-h-[480px] overflow-hidden rounded-lg border border-border">
+        <KilnTwin
+          telemetry={telemetry}
+          showLabels={showLabels}
+          night={night}
+          xray={xray}
+          onSegmentClick={(index, temp) => setSegment({ index, temp })}
+        />
+        {segment && (
+          <div className="absolute right-3 top-3 w-56 rounded-lg border border-border bg-card/95 p-3 shadow-lg backdrop-blur">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold">窑体分段 #{segment.index + 1}</p>
+              <button className="text-xs text-muted-foreground hover:text-foreground" onClick={() => setSegment(null)}>
+                ✕
+              </button>
+            </div>
+            <p className="mt-1.5 text-2xl font-semibold tabular-nums text-teal-700">
+              {segment.temp}
+              <span className="ml-0.5 text-xs font-normal text-slate-400">℃</span>
+            </p>
+            <p className="mt-0.5 text-[10px] text-muted-foreground">
+              轴向位置约 {Math.round(((segment.index + 0.5) / 12) * 100)}% 窑长 · 数据源 温度场曲线
+            </p>
+            <p className="mt-1.5 text-[10px] leading-relaxed text-muted-foreground">
+              {segment.temp > 1100
+                ? "高温段：有价金属剧烈挥发区，注意结圈风险"
+                : segment.temp > 900
+                  ? "中温段：主流焙烧反应区"
+                  : "低温段：预热/尾段，关注料层均匀性"}
+            </p>
+          </div>
+        )}
       </div>
       <p className="text-xs text-muted-foreground">
         操作：鼠标左键旋转 / 右键平移 / Ctrl+滚轮缩放。筒体颜色=轴向温度场（暗红→亮黄）；

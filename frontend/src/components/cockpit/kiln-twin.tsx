@@ -10,7 +10,7 @@
  */
 
 import * as React from "react";
-import { Canvas, useFrame } from "@react-three/fiber";
+import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { Html, OrbitControls, Grid } from "@react-three/drei";
 import * as THREE from "three";
 
@@ -55,8 +55,16 @@ function sampleField(field: [number, number][] | null, ratio: number, fallback: 
   return field[field.length - 1][1];
 }
 
-/** 筒体（含滚圈/齿圈）——整体绕轴线旋转 */
-function KilnBody({ telemetry }: { telemetry: KilnTelemetry }) {
+/** 筒体（含滚圈/齿圈）——整体绕轴线旋转；支持分段点击与透视模式 */
+function KilnBody({
+  telemetry,
+  xray,
+  onSegmentClick,
+}: {
+  telemetry: KilnTelemetry;
+  xray?: boolean;
+  onSegmentClick?: (index: number, temp: number) => void;
+}) {
   const spinRef = React.useRef<THREE.Group>(null);
   const segRefs = React.useRef<(THREE.MeshStandardMaterial | null)[]>([]);
   const fieldRef = React.useRef(telemetry.tempField);
@@ -89,7 +97,22 @@ function KilnBody({ telemetry }: { telemetry: KilnTelemetry }) {
           const x = -SHELL_LEN / 2 + segLen * (i + 0.5);
           const temp = sampleField(telemetry.tempField, (i + 0.5) / SEGMENTS, 700 + i * 20);
           return (
-            <mesh key={i} position={[x, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <mesh
+              key={i}
+              position={[x, 0, 0]}
+              rotation={[0, 0, Math.PI / 2]}
+              onClick={(e) => {
+                e.stopPropagation();
+                onSegmentClick?.(i, Math.round(temp));
+              }}
+              onPointerOver={(e) => {
+                e.stopPropagation();
+                document.body.style.cursor = onSegmentClick ? "pointer" : "default";
+              }}
+              onPointerOut={() => {
+                document.body.style.cursor = "default";
+              }}
+            >
               <cylinderGeometry args={[SHELL_R, SHELL_R, segLen + 0.02, 28]} />
               <meshStandardMaterial
                 ref={(m) => {
@@ -100,10 +123,21 @@ function KilnBody({ telemetry }: { telemetry: KilnTelemetry }) {
                 emissiveIntensity={0.75}
                 metalness={0.55}
                 roughness={0.45}
+                transparent={xray}
+                opacity={xray ? 0.22 : 1}
+                depthWrite={!xray}
               />
             </mesh>
           );
         })}
+        {/* 透视模式：窑内料床（沿轴发光条） */}
+        {xray && (
+          <mesh position={[0, -SHELL_R * 0.45, 0]} rotation={[0, 0, Math.PI / 2]}>
+            <cylinderGeometry args={[SHELL_R * 0.55, SHELL_R * 0.55, SHELL_LEN * 0.94, 20]} />
+            <meshStandardMaterial color="#f97316" emissive="#ea580c" emissiveIntensity={1.1} />
+          </mesh>
+        )}
+
         {/* 滚圈 ×2 */}
         {[-7.5, 7.5].map((x) => (
           <mesh key={x} position={[x, 0, 0]} rotation={[0, 0, Math.PI / 2]}>
@@ -332,28 +366,56 @@ function TelemetryLabels({ telemetry, visible }: { telemetry: KilnTelemetry; vis
   );
 }
 
+/** 昼夜切换：更新场景背景与雾 */
+function SceneAtmosphere({ night }: { night: boolean }) {
+  const { scene } = useThree();
+  React.useEffect(() => {
+    const bg = night ? "#0b1220" : "#eef4f4";
+    scene.background = new THREE.Color(bg);
+    scene.fog = new THREE.Fog(bg, 60, 140);
+  }, [night, scene]);
+  return null;
+}
+
 function fmt(v: number | null, digits = 1): string {
   return v == null ? "--" : v.toFixed(digits);
 }
 
 /** 主组件 */
-export function KilnTwin({ telemetry, showLabels = true }: { telemetry: KilnTelemetry; showLabels?: boolean }) {
+export function KilnTwin({
+  telemetry,
+  showLabels = true,
+  night = false,
+  xray = false,
+  onSegmentClick,
+}: {
+  telemetry: KilnTelemetry;
+  showLabels?: boolean;
+  /** 夜间模式：暗背景 + 窑体自发光更突出 */
+  night?: boolean;
+  /** 窑内透视：筒体半透明，露出料床 */
+  xray?: boolean;
+  onSegmentClick?: (index: number, temp: number) => void;
+}) {
+  const bg = night ? "#0b1220" : "#eef4f4";
   return (
     <Canvas
       camera={{ position: [30, 14, 26], fov: 42 }}
       dpr={[1, 2]}
       shadows={false}
       onCreated={({ scene }) => {
-        scene.background = new THREE.Color("#eef4f4");
-        scene.fog = new THREE.Fog("#eef4f4", 60, 140);
+        scene.background = new THREE.Color(bg);
+        scene.fog = new THREE.Fog(bg, 60, 140);
       }}
     >
-      <ambientLight intensity={0.75} />
-      <directionalLight position={[18, 30, 12]} intensity={1.1} />
-      <directionalLight position={[-20, 16, -14]} intensity={0.35} />
+      <ambientLight intensity={night ? 0.3 : 0.75} />
+      <directionalLight position={[18, 30, 12]} intensity={night ? 0.35 : 1.1} />
+      <directionalLight position={[-20, 16, -14]} intensity={night ? 0.15 : 0.35} />
+      {/* 夜间补光：窑体上方青色氛围光 */}
+      {night && <pointLight position={[0, 16, 8]} color="#2dd4bf" intensity={12} distance={50} />}
 
       <group position={[-4, 0, 0]}>
-        <KilnBody telemetry={telemetry} />
+        <KilnBody telemetry={telemetry} xray={xray} onSegmentClick={onSegmentClick} />
         <KilnHead telemetry={telemetry} />
         <FeedEnd telemetry={telemetry} />
         <GasTrain telemetry={telemetry} />
@@ -363,18 +425,19 @@ export function KilnTwin({ telemetry, showLabels = true }: { telemetry: KilnTele
       <Grid
         args={[90, 60]}
         cellSize={1.5}
-        cellColor="#cbd5d5"
+        cellColor={night ? "#1e293b" : "#cbd5d5"}
         sectionSize={7.5}
-        sectionColor="#9fc4c4"
+        sectionColor={night ? "#334155" : "#9fc4c4"}
         position={[6, 0, 0]}
         infiniteGrid={false}
         fadeDistance={90}
       />
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[6, -0.05, 0]} receiveShadow>
         <planeGeometry args={[140, 100]} />
-        <meshStandardMaterial color="#e8efef" />
+        <meshStandardMaterial color={night ? "#0f172a" : "#e8efef"} />
       </mesh>
 
+      <SceneAtmosphere night={night} />
       <TelemetryLabels telemetry={telemetry} visible={showLabels} />
       <OrbitControls
         target={[2, 4, 0]}
