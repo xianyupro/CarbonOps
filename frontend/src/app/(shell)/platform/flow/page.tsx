@@ -165,10 +165,12 @@ function createFlowNode(comp: ComponentDef, x: number, y: number, id: string): X
         filter: "drop-shadow(0 2px 6px rgba(15,23,42,0.10))",
       },
       bar: {
-        refX: 5,
-        refY: 8,
+        // 注意：不能用 refHeight —— X6 把数值解释为参考元素的百分比（132 = 132%），
+        // 会导致色条溢出节点。SVG rect 用绝对坐标即可。
+        x: 5,
+        y: 8,
         width: 3.5,
-        refHeight: height - 16,
+        height: height - 16,
         rx: 2,
         ry: 2,
         fill: color,
