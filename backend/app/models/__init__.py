@@ -11,6 +11,7 @@ from .data import (  # noqa: F401
     DataQualityLog,
 )
 from .model_lib import ModelRegistry, ModelVersion, ModelCall  # noqa: F401
+from .metamodel import Metamodel, MetamodelVersion  # noqa: F401
 from .platform import Scenario, Alarm, FormConfig  # noqa: F401
 
 __all__ = [
@@ -29,6 +30,8 @@ __all__ = [
     "ModelRegistry",
     "ModelVersion",
     "ModelCall",
+    "Metamodel",
+    "MetamodelVersion",
     "Scenario",
     "Alarm",
     "FormConfig",

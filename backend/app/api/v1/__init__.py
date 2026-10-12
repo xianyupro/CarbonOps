@@ -2,7 +2,7 @@
 from fastapi import APIRouter
 from app.api.v1 import (
     auth, data_sources, data_imports, data_points, data_query, data_quality,
-    dashboard, users, model_lib, scenarios, alarms, studio,
+    dashboard, users, model_lib, metamodels, scenarios, alarms, studio,
 )
 
 router = APIRouter()
@@ -15,6 +15,7 @@ router.include_router(data_query.router, prefix="/data", tags=["数据管理-查
 router.include_router(data_quality.router, prefix="/data-quality", tags=["数据管理-质量"])
 router.include_router(dashboard.router, prefix="/dashboard", tags=["驾驶舱"])
 router.include_router(model_lib.router, prefix="/models", tags=["模型库"])
+router.include_router(metamodels.router, prefix="/metamodels", tags=["数据基座-元模型"])
 router.include_router(scenarios.router, prefix="/scenarios", tags=["行业场景"])
 router.include_router(alarms.router, prefix="/alarms", tags=["告警中心"])
 router.include_router(studio.router, prefix="/forms", tags=["组态开发"])

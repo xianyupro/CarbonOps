@@ -659,3 +659,104 @@ export interface RealtimeFrame {
   value: number | null;
   quality: DataQuality;
 }
+
+// ===================== 数据基座 · 元模型 =====================
+
+/** 四类元模型 */
+export type MetamodelType = "MECHANISM" | "DATA_MODEL" | "ALGORITHM" | "KNOWLEDGE_RULE";
+
+/** 核心关系式（结构与核心关系节） */
+export interface MetamodelRelation {
+  id: string;
+  expression: string;
+  note?: string | null;
+}
+
+/** 变量与参数定义（第四节的行） */
+export interface MetamodelIoParam {
+  category: string; // 输入 / 参数 / 输出传参 / 输出
+  symbol: string;
+  dtype: string;
+  dim?: string;
+  unit?: string;
+  rangeRequired?: string;
+  exampleDefault?: string;
+  sourceMeaning?: string;
+}
+
+/** 元模型（按《元模型交付模板》8 节结构） */
+export interface Metamodel {
+  id: number;
+  metaCode: string;
+  modelType: MetamodelType;
+  name: string;
+  domain?: string | null;
+  hierarchy?: string | null;
+  purpose?: string | null;
+  methodStructure?: string | null;
+  versionNo: string;
+  maturity?: string | null;
+  keywords?: string[] | null;
+  scopeObject?: string | null;
+  sourceOwnership?: string | null;
+  authorMaintainer?: string | null;
+  namingRule?: string | null;
+  sceneDomain?: string | null;
+  assumptions?: string | null;
+  limitsPrecision?: string | null;
+  structureFlow?: string[] | null;
+  coreRelations?: MetamodelRelation[] | null;
+  ioParams?: MetamodelIoParam[] | null;
+  methodFlow?: string | null;
+  entryInterface?: string | null;
+  exceptionBehavior?: string | null;
+  envMaterials?: string | null;
+  sourceManifest?: string | null;
+  deliveryRepro?: string | null;
+  deployCombination?: string | null;
+  validationBaseline?: string | null;
+  validationLimits?: string | null;
+  status: ModelStatus;
+  industry: string;
+  processStage?: string | null;
+  tags?: string[] | null;
+  provider?: string | null;
+  callCount: number;
+  accuracy?: number | null;
+  legacyModelId?: number | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface MetamodelDetail extends Metamodel {
+  versions?: MetamodelVersion[];
+}
+
+export interface MetamodelVersion {
+  id: number;
+  metamodelId: number;
+  versionNo: string;
+  changelog?: string | null;
+  snapshot?: Record<string, unknown> | null;
+  createdBy?: string | null;
+  createdAt: string;
+}
+
+export interface MetamodelQuery extends PageQuery {
+  modelType?: string;
+  industry?: string;
+  status?: string;
+  sortBy?: string;
+  sortOrder?: string;
+}
+
+export interface MetamodelFacets {
+  modelType: FacetBucket[];
+  industry: FacetBucket[];
+  status: FacetBucket[];
+}
+
+/** 元模型录入/编辑载荷（camelCase 直传后端） */
+export interface MetamodelPayload extends Partial<Metamodel> {
+  initialChangelog?: string;
+}

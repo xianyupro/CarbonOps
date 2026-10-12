@@ -13,6 +13,8 @@ import {
   ScrollText,
   PlusCircle,
   Cloud,
+  Network,
+  FilePlus2,
 } from "lucide-react";
 
 export interface NavItem {
@@ -107,6 +109,24 @@ export const navConfig: NavGroup[] = [
         icon: ShieldCheck,
         permission: "data:quality:read",
         anyPermission: ["data:source:read"],
+      },
+    ],
+  },
+  {
+    title: "元模型中心",
+    items: [
+      {
+        label: "登记录入",
+        href: "/metamodel/registry",
+        icon: FilePlus2,
+        permission: "model:write",
+        anyPermission: ["model:read"],
+      },
+      {
+        label: "元模型库",
+        href: "/metamodel/library",
+        icon: Network,
+        permission: "model:read",
       },
     ],
   },

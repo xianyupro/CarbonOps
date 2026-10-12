@@ -72,6 +72,8 @@ class TimeSeries(Base):
     point_id: Mapped[int] = mapped_column(Integer, ForeignKey("data_points.id", ondelete="CASCADE"), index=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime, index=True, nullable=False)
     value: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 非数值型采样（ARRAY 曲线/字符串状态）存这里，数值仍走 value
+    value_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     quality: Mapped[str] = mapped_column(String(8), default="GOOD")  # GOOD/BAD/MISSING
 
     __table_args__ = (Index("ix_time_series_point_ts", "point_id", "timestamp"),)

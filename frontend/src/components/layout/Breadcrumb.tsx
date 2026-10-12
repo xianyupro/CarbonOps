@@ -12,6 +12,16 @@ import { cn } from "@/lib/utils";
  * Maps each segment to its human label via `routeMap`; falls back to the raw
  * segment title-cased when no match exists.
  */
+/** 分组路径段的显示名（无独立页面的中间路径） */
+const SEGMENT_LABELS: Record<string, string> = {
+  metamodel: "元模型中心",
+  data: "数据基座",
+  models: "模型库",
+  scenarios: "行业场景",
+  system: "系统管理",
+  studio: "组态开发",
+};
+
 export function Breadcrumb() {
   const pathname = usePathname() || "/";
   const segments = pathname.split("/").filter(Boolean);
@@ -20,7 +30,7 @@ export function Breadcrumb() {
     const href = "/" + segments.slice(0, idx + 1).join("/");
     const matched = routeMap[href];
     const label =
-      matched?.label ?? seg.charAt(0).toUpperCase() + seg.slice(1);
+      matched?.label ?? SEGMENT_LABELS[seg] ?? seg.charAt(0).toUpperCase() + seg.slice(1);
     return { href, label };
   });
 

@@ -56,6 +56,12 @@ import type {
   ModelFacets,
   TestRunPayload,
   TestRunResult,
+  Metamodel,
+  MetamodelDetail,
+  MetamodelFacets,
+  MetamodelPayload,
+  MetamodelQuery,
+  MetamodelVersion,
   Alarm,
   AlarmQuery,
   FormConfig,
@@ -449,6 +455,32 @@ export const api = {
       request<PageResult<ModelCall>>("GET", `/models/${id}/calls`, {
         query: params,
       }),
+  },
+
+  metamodels: {
+    list: (params?: MetamodelQuery) =>
+      request<PageResult<Metamodel>>("GET", "/metamodels", { query: params }),
+    facets: () => request<MetamodelFacets>("GET", "/metamodels/facets"),
+    get: (id: number) => request<MetamodelDetail>("GET", `/metamodels/${id}`),
+    create: (body: MetamodelPayload) =>
+      request<Metamodel>("POST", "/metamodels", { body }),
+    update: (id: number, body: MetamodelPayload) =>
+      request<Metamodel>("PUT", `/metamodels/${id}`, { body }),
+    delete: (id: number) => request<void>("DELETE", `/metamodels/${id}`),
+    versions: (id: number) =>
+      request<MetamodelVersion[]>("GET", `/metamodels/${id}/versions`),
+    createVersion: (id: number, body: { versionNo: string; changelog?: string }) =>
+      request<MetamodelVersion>("POST", `/metamodels/${id}/versions`, { body }),
+    importJson: (metamodels: Record<string, unknown>[]) =>
+      request<{ created: number; updated: number }>("POST", "/metamodels/import", {
+        body: { metamodels },
+      }),
+    /** 导出（返回 Blob，由调用方触发下载） */
+    exportUrl: (format: "json" | "excel", modelType?: string) => {
+      const qs = new URLSearchParams({ format });
+      if (modelType) qs.set("modelType", modelType);
+      return `${buildUrl("/metamodels/export")}?${qs.toString()}`;
+    },
   },
 
   scenarios: {
