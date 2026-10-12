@@ -20,6 +20,7 @@ const SEGMENT_LABELS: Record<string, string> = {
   scenarios: "行业场景",
   system: "系统管理",
   studio: "组态开发",
+  platform: "组件平台",
 };
 
 export function Breadcrumb() {

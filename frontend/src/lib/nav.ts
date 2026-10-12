@@ -137,17 +137,11 @@ export const navConfig: NavGroup[] = [
     ],
   },
   {
-    title: "模型与组态",
+    title: "组件平台",
     items: [
       {
-        label: "模型库",
-        href: "/models",
-        icon: Boxes,
-        permission: "model:read",
-      },
-      {
-        label: "模型编排",
-        href: "/orchestration",
+        label: "控制流编排",
+        href: "/platform/flow",
         icon: Workflow,
         permission: "orchestration:read",
         anyPermission: ["model:read"],

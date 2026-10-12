@@ -1,0 +1,792 @@
+"use client";
+
+/**
+ * 控制流编排器 —— 组件平台核心页面。
+ * 概念对齐 ApexMotion：双语义边（控制实线/数据虚线）、端口=参数、
+ * 三段式绑定（$变量 / 节点.输出）、仿真执行 + 节点级运行日志。
+ *
+ * 布局：左侧组件库（分类分组）| 中部 X6 画布 | 右侧参数面板 / 运行日志。
+ */
+import * as React from "react";
+import { toast } from "sonner";
+import { Graph } from "@antv/x6";
+import type { Edge as X6Edge, Node as X6Node } from "@antv/x6";
+import {
+  Clock,
+  Loader2,
+  Play,
+  Plus,
+  Save,
+  Square,
+  Trash2,
+} from "lucide-react";
+
+import { api } from "@/lib/api";
+import type {
+  ComponentDef,
+  ComponentRegistry,
+  FlowGraph,
+  FlowGraphNode,
+  MetamodelOption,
+} from "@/types/api";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+const NODE_W = 168;
+const NODE_H = 52;
+
+interface EditorNodeData extends Record<string, unknown> {
+  componentCode: string;
+  name: string;
+  color: string;
+  params: Record<string, unknown>;
+  bindings: Record<string, string>;
+}
+
+function nodeLabel(comp: ComponentDef) {
+  return comp.name;
+}
+
+/** 组件 → X6 端口配置（控制口在上/下，数据口在左/右 —— 纵向控制流、横向数据流） */
+function buildPorts(comp: ComponentDef) {
+  const mk = (id: string, group: string, label: string) => ({
+    id,
+    group,
+    attrs: { text: { text: label } },
+  });
+  const items: ReturnType<typeof mk>[] = [];
+  if (comp.refCode !== "start") items.push(mk("in", "controlIn", ""));
+  for (const p of comp.inputs ?? []) items.push(mk(p.key, "in", p.label));
+  if (comp.kind === "single" && comp.refCode !== "end") items.push(mk("next", "controlOut", ""));
+  if (comp.kind === "condition") {
+    items.push(mk("true", "controlOut", "真"));
+    items.push(mk("false", "controlOut", "假"));
+  }
+  if (comp.kind === "circulate") {
+    items.push(mk("loop", "controlOut", "循环"));
+    items.push(mk("exit", "controlOut", "退出"));
+  }
+  for (const o of comp.outputs ?? []) items.push(mk(o.key, "out", o.label));
+  return {
+    groups: {
+      controlIn: {
+        position: { name: "top" },
+        attrs: {
+          circle: { r: 5, magnet: true, stroke: "#0d9488", fill: "#ffffff", strokeWidth: 1.6 },
+          text: { display: "none" },
+        },
+      },
+      controlOut: {
+        position: { name: "bottom" },
+        attrs: {
+          circle: { r: 5, magnet: true, stroke: "#0d9488", fill: "#0d9488", strokeWidth: 1.6 },
+          text: {
+            display: "block",
+            fill: "#64748b",
+            fontSize: 9,
+            position: "bottom" as const,
+            offset: { y: 6 },
+          },
+        },
+      },
+      in: {
+        position: { name: "left" },
+        attrs: {
+          circle: { r: 4.5, magnet: true, stroke: "#2563eb", fill: "#ffffff", strokeWidth: 1.4 },
+          text: { display: "block", fill: "#64748b", fontSize: 9, position: "left" as const, offset: { x: -4 } },
+        },
+      },
+      out: {
+        position: { name: "right" },
+        attrs: {
+          circle: { r: 4.5, magnet: true, stroke: "#2563eb", fill: "#2563eb", strokeWidth: 1.4 },
+          text: { display: "block", fill: "#64748b", fontSize: 9, position: "right" as const, offset: { x: 4 } },
+        },
+      },
+    },
+    items,
+  };
+}
+
+function createFlowNode(comp: ComponentDef, x: number, y: number, id: string): X6Node.Metadata {
+  const color = comp.uiConfig?.color ?? "#475569";
+  return {
+    id,
+    shape: "rect",
+    x,
+    y,
+    width: NODE_W,
+    height: NODE_H,
+    attrs: {
+      body: {
+        fill: "#ffffff",
+        stroke: color + "88",
+        strokeWidth: 1.4,
+        rx: 10,
+        ry: 10,
+      },
+      label: {
+        text: nodeLabel(comp),
+        fill: "#1e293b",
+        fontSize: 12,
+        fontWeight: 600,
+        refX: "50%",
+        refY: "50%",
+        textAnchor: "middle",
+        textVerticalAnchor: "middle",
+      },
+    },
+    ports: buildPorts(comp),
+    data: {
+      componentCode: comp.code,
+      name: comp.name,
+      color,
+      params: Object.fromEntries(
+        (comp.paramsSchema ?? []).map((p) => [p.key, p.default ?? null])
+      ) as Record<string, unknown>,
+      bindings: {} as Record<string, string>,
+    } satisfies EditorNodeData,
+  };
+}
+
+export default function FlowEditorPage() {
+  const containerRef = React.useRef<HTMLDivElement>(null);
+  const graphRef = React.useRef<Graph | null>(null);
+  const [registry, setRegistry] = React.useState<ComponentRegistry | null>(null);
+  const [metamodels, setMetamodels] = React.useState<MetamodelOption[]>([]);
+  const [flows, setFlows] = React.useState<{ id: number; name: string }[]>([]);
+  const [currentId, setCurrentId] = React.useState<number | null>(null);
+  const [flowName, setFlowName] = React.useState("未命名流程");
+  const [selectedNode, setSelectedNode] = React.useState<X6Node | null>(null);
+  const [running, setRunning] = React.useState(false);
+  const [runResult, setRunResult] = React.useState<{
+    state: string;
+    durationMs: number;
+    error?: string | null;
+    logs: {
+      nodeId: string;
+      name: string;
+      state: string;
+      durationMs: number;
+      inputs: Record<string, { value: unknown; source: string }>;
+      outputs: Record<string, unknown>;
+      error?: string | null;
+    }[];
+  } | null>(null);
+  const [rightTab, setRightTab] = React.useState<"params" | "run">("params");
+  const [dirty, setDirty] = React.useState(false);
+  const [, force] = React.useState(0);
+
+  const compByCode = React.useMemo(() => {
+    const map = new Map<string, ComponentDef>();
+    for (const group of Object.values(registry?.groups ?? {}))
+      for (const c of group) map.set(c.code, c);
+    return map;
+  }, [registry]);
+
+  /** 加载或初始化画布 */
+  React.useEffect(() => {
+    if (!containerRef.current || graphRef.current) return;
+
+    const graph = new Graph({
+      container: containerRef.current,
+      background: { color: "#f8fafc" },
+      grid: { size: 20, type: "dot", args: { color: "#cbd5e1", thickness: 1 } },
+      panning: true,
+      mousewheel: { zoomAtMousePosition: true, minScale: 0.4, maxScale: 2, modifiers: ["ctrl"] },
+      connecting: {
+        allowBlank: false,
+        allowLoop: false,
+        allowNode: false,
+        anchor: "center",
+        connectionPoint: "anchor",
+        highlight: true,
+        connector: { name: "smooth" },
+        createEdge() {
+          return graph.createEdge({
+            shape: "edge",
+            attrs: {
+              line: { stroke: "#94a3b8", strokeWidth: 1.6, targetMarker: null },
+            },
+          });
+        },
+        validateConnection({ sourcePort, targetPort }) {
+          if (!sourcePort || !targetPort) return false;
+          const srcIsControl =
+            sourcePort === "next" || ["true", "false", "loop", "exit"].includes(sourcePort);
+          // 规则：控制口 → 控制入口(in)；数据口 → 数据输入口
+          if (srcIsControl) return targetPort === "in";
+          return targetPort !== "in";
+        },
+      },
+    });
+    graphRef.current = graph;
+
+    graph.on("edge:connected", ({ isNew, edge }: { isNew: boolean; edge: X6Edge }) => {
+      if (!isNew) return;
+      const sourcePort = edge.getSourcePortId();
+      const targetPort = edge.getTargetPortId();
+      const isControl =
+        sourcePort === "next" || ["true", "false", "loop", "exit"].includes(sourcePort);
+      // 数据边单绑定：目标输入口已有连线时替换旧线（ApexMotion 语义）
+      if (!isControl) {
+        const incoming = graph.getIncomingEdges(edge.getTargetCellId()) ?? [];
+        for (const old of incoming) {
+          if (old.id !== edge.id && old.getTargetPortId() === targetPort) {
+            graph.removeCell(old);
+          }
+        }
+      }
+      edge.attr("line/stroke", isControl ? "#0d9488" : "#2563eb");
+      edge.attr("line/strokeDasharray", isControl ? null : "5 3");
+      edge.attr("line/targetMarker", isControl
+        ? { name: "block", width: 8, height: 6 }
+        : { name: "circle", r: 2.5 });
+      edge.setData({ kind: isControl ? "control" : "data", sourcePort, targetPort });
+      setDirty(true);
+    });
+
+    graph.on("node:click", ({ node }: { node: X6Node }) => {
+      setSelectedNode(node);
+      setRightTab("params");
+    });
+    graph.on("blank:click", () => setSelectedNode(null));
+    graph.on("node:moved", () => setDirty(true));
+    graph.on("node:removed", () => {
+      setSelectedNode(null);
+      setDirty(true);
+    });
+
+    return () => {
+      graph.dispose();
+      graphRef.current = null;
+    };
+  }, []);
+
+  /** 数据加载 */
+  React.useEffect(() => {
+    api.flows.components().then(setRegistry).catch(() => toast.error("组件库加载失败"));
+    api.flows.metamodelOptions().then(setMetamodels).catch(() => {});
+    api.flows
+      .list()
+      .then((fs) => setFlows(fs.map((f) => ({ id: f.id, name: f.name }))))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 组件注册表 + 流程列表都就绪后才自动加载第一个流程（否则 compByCode 为空会丢节点）
+  const autoLoadedRef = React.useRef(false);
+  React.useEffect(() => {
+    if (autoLoadedRef.current || !registry || flows.length === 0) return;
+    autoLoadedRef.current = true;
+    loadFlow(flows[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [registry, flows]);
+
+  function loadFlow(id: number) {
+    api.flows
+      .get(id)
+      .then((f) => {
+        setCurrentId(f.id);
+        setFlowName(f.name);
+        const g = graphRef.current;
+        if (!g) return;
+        g.clearCells();
+        for (const n of f.graph?.nodes ?? []) {
+          const comp = compByCode.get(n.componentCode);
+          if (!comp) continue;
+          g.addNode({
+            ...createFlowNode(comp, n.x, n.y, n.id),
+            data: { componentCode: n.componentCode, name: n.name ?? comp.name, color: comp.uiConfig?.color ?? "#475569", params: n.params ?? {}, bindings: n.bindings ?? {} },
+          });
+        }
+        for (const e of f.graph?.edges ?? []) {
+          const isControl = e.kind === "control";
+          g.addEdge({
+            id: e.id,
+            shape: "edge",
+            source: { cell: e.source, port: e.sourcePort },
+            target: { cell: e.target, port: e.targetPort },
+            attrs: {
+              line: {
+                stroke: isControl ? "#0d9488" : "#2563eb",
+                strokeDasharray: isControl ? null : "5 3",
+                strokeWidth: 1.6,
+                targetMarker: isControl
+                  ? { name: "block", width: 8, height: 6 }
+                  : { name: "circle", r: 2.5 },
+              },
+            },
+            data: { kind: e.kind, sourcePort: e.sourcePort, targetPort: e.targetPort },
+          });
+        }
+        setDirty(false);
+        // 视野适配（延后一帧等布局生效）
+        setTimeout(() => {
+          try {
+            g.zoomToFit({ padding: 40, maxScale: 1 });
+            g.centerContent();
+          } catch {
+            /* 忽略适配竞态 */
+          }
+        }, 60);
+      })
+      .catch(() => toast.error("流程加载失败"));
+  }
+
+  function addComponent(comp: ComponentDef) {
+    const g = graphRef.current;
+    if (!g) return;
+    const count = g.getNodes().length;
+    const id = `n${Date.now().toString(36)}${count}`;
+    const pos = g.graphToLocal({ x: 120 + (count % 5) * 40, y: 60 + (count % 6) * 36 });
+    g.addNode(createFlowNode(comp, pos.x, pos.y, id));
+    setDirty(true);
+  }
+
+  function exportGraph(): FlowGraph {
+    const g = graphRef.current;
+    const nodes: FlowGraphNode[] = (g?.getNodes() ?? []).map((n: X6Node) => {
+      const d = n.getData<EditorNodeData>();
+      return {
+        id: n.id as string,
+        componentCode: d.componentCode,
+        name: d.name,
+        x: Math.round(n.getPosition().x),
+        y: Math.round(n.getPosition().y),
+        params: d.params ?? {},
+        bindings: d.bindings ?? {},
+      };
+    });
+    const edges = (g?.getEdges() ?? []).map((e: X6Edge) => {
+      const d = e.getData<{ kind: "control" | "data"; sourcePort: string; targetPort: string }>();
+      return {
+        id: e.id as string,
+        source: e.getSourceCellId(),
+        target: e.getTargetCellId(),
+        kind: d?.kind ?? "control",
+        sourcePort: d?.sourcePort ?? e.getSourcePortId(),
+        targetPort: d?.targetPort ?? e.getTargetPortId(),
+      };
+    });
+    return { nodes, edges };
+  }
+
+  async function handleSave() {
+    const g = exportGraph();
+    try {
+      if (currentId == null) {
+        const f = await api.flows.create({ name: flowName, graph: g });
+        setCurrentId(f.id);
+        setFlows((prev) => [...prev, { id: f.id, name: f.name }]);
+      } else {
+        await api.flows.update(currentId, { name: flowName, graph: g });
+      }
+      setDirty(false);
+      toast.success("流程已保存");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "保存失败");
+    }
+  }
+
+  async function handleRun() {
+    if (currentId == null) {
+      toast.error("请先保存流程");
+      return;
+    }
+    // 保存最新画布再运行
+    await handleSave();
+    setRunning(true);
+    setRightTab("run");
+    try {
+      const r = await api.flows.run(currentId!);
+      setRunResult({
+        state: r.state,
+        durationMs: r.durationMs,
+        error: r.error,
+        logs: r.nodeLogs ?? [],
+      });
+      if (r.state === "SUCCESS") toast.success(`执行成功（${r.durationMs}ms）`);
+      else toast.error(`执行失败：${r.error ?? "未知错误"}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "运行失败");
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  function updateSelectedParam(key: string, value: unknown) {
+    const node = selectedNode;
+    if (!node) return;
+    const d = node.getData<EditorNodeData>();
+    node.setData({ ...d, params: { ...d.params, [key]: value } } as EditorNodeData);
+    setDirty(true);
+    force((x) => x + 1);
+  }
+
+  function clearBinding(key: string) {
+    const node = selectedNode;
+    if (!node) return;
+    const d = node.getData<EditorNodeData>();
+    node.setData({ ...d, bindings: { ...d.bindings, [key]: "" } } as EditorNodeData);
+    setDirty(true);
+    force((x) => x + 1);
+  }
+
+  function removeSelectedNode() {
+    const node = selectedNode;
+    if (!node) return;
+    graphRef.current?.removeCell(node);
+  }
+
+  const compOfSelected = selectedNode
+    ? compByCode.get(selectedNode.getData<EditorNodeData>()?.componentCode ?? "")
+    : null;
+
+  /** 可绑定源：当前节点的上游节点及其输出 */
+  const bindingCandidates = React.useMemo(() => {
+    if (!selectedNode || !graphRef.current) return [] as { nodeId: string; nodeName: string; outputs: { key: string; label: string }[] }[];
+    const incoming = graphRef.current.getNeighborNodes(selectedNode, { incoming: true }) ?? [];
+    return incoming.map((n: X6Node) => {
+      const d = n.getData<EditorNodeData>();
+      const comp = compByCode.get(d?.componentCode ?? "");
+      return {
+        nodeId: n.id as string,
+        nodeName: d?.name ?? "",
+        outputs: (comp?.outputs ?? []).map((o) => ({ key: o.key, label: o.label })),
+      };
+    });
+  }, [selectedNode, compByCode, registry]);
+
+  return (
+    <div className="flex h-[calc(100vh-96px)] gap-3">
+      {/* ===== 左侧：组件库 ===== */}
+      <div className="flex w-56 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <div className="border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground">
+          组件库
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-2">
+          {Object.entries(registry?.groups ?? {}).map(([cat, comps]) => (
+            <div key={cat} className="mb-3">
+              <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {cat}
+              </p>
+              <div className="space-y-1">
+                {comps.map((c) => (
+                  <button
+                    key={c.code}
+                    title={c.description ?? ""}
+                    onClick={() => addComponent(c)}
+                    className="group flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:border-border hover:bg-accent"
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: c.uiConfig?.color ?? "#64748b" }}
+                    />
+                    <span className="truncate font-medium">{c.name}</span>
+                    <Plus className="ml-auto h-3 w-3 opacity-0 group-hover:opacity-60" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-border p-2 text-[10px] leading-relaxed text-muted-foreground">
+          点击组件添加到画布；从端口拖出连线（纵向=控制流，横向=数据流）
+        </div>
+      </div>
+
+      {/* ===== 中部：画布 + 工具栏 ===== */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <Select
+            value={currentId != null ? String(currentId) : undefined}
+            onValueChange={(v) => loadFlow(Number(v))}
+          >
+            <SelectTrigger className="w-40 h-8 text-xs">
+              <SelectValue placeholder="选择流程" />
+            </SelectTrigger>
+            <SelectContent>
+              {flows.map((f) => (
+                <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            className="h-8 w-40 text-xs"
+            value={flowName}
+            onChange={(e) => { setFlowName(e.target.value); setDirty(true); }}
+          />
+          {dirty && <span className="text-xs text-amber-600">未保存</span>}
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={handleSave}>
+              <Save className="mr-1 h-3.5 w-3.5" /> 保存
+            </Button>
+            <Button size="sm" onClick={handleRun} disabled={running}>
+              {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
+              运行（仿真）
+            </Button>
+          </div>
+        </div>
+        <div ref={containerRef} className="min-h-0 flex-1" />
+      </div>
+
+      {/* ===== 右侧：参数 / 运行 ===== */}
+      <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as "params" | "run")}>
+          <TabsList className="w-full rounded-none border-b border-border">
+            <TabsTrigger value="params" className="flex-1">参数配置</TabsTrigger>
+            <TabsTrigger value="run" className="flex-1">运行日志</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {rightTab === "params" ? (
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-3">
+            {!selectedNode || !compOfSelected ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Square className="h-6 w-6 opacity-30" />
+                点击画布中的节点编辑参数
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="h-2.5 w-2.5 rounded-full" style={{ background: selectedNode.getData<EditorNodeData>().color }} />
+                    <span className="text-sm font-semibold">{selectedNode.getData<EditorNodeData>().name}</span>
+                  </div>
+                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={removeSelectedNode}>
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+                <p className="text-xs leading-relaxed text-muted-foreground">{compOfSelected.description}</p>
+
+                {(compOfSelected.paramsSchema ?? []).map((p) => {
+                  const nodeData = selectedNode.getData<EditorNodeData>();
+                  const value = nodeData.params?.[p.key];
+                  const binding = nodeData.bindings?.[p.key];
+                  return (
+                    <div key={p.key} className="space-y-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-xs font-medium">
+                          {p.label}
+                          {p.required && <span className="text-destructive"> *</span>}
+                        </label>
+                        {binding && (
+                          <button className="text-[10px] text-primary hover:underline" onClick={() => clearBinding(p.key)}>
+                            解除绑定
+                          </button>
+                        )}
+                      </div>
+                      {binding ? (
+                        <div className="rounded-md border border-primary/40 bg-accent px-2 py-1.5 font-mono text-xs">
+                          {binding}
+                        </div>
+                      ) : p.dtype === "select" ? (
+                        <Select value={String(value ?? "")} onValueChange={(v) => updateSelectedParam(p.key, v)}>
+                          <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {(p.options ?? []).map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      ) : p.dtype === "point" ? (
+                        <PointPicker value={value as number | null} onChange={(v) => updateSelectedParam(p.key, v)} />
+                      ) : p.dtype === "metamodel" ? (
+                        <MetamodelPicker
+                          options={metamodels}
+                          value={value as number | null}
+                          onChange={(v) => updateSelectedParam(p.key, v)}
+                        />
+                      ) : (
+                        <Input
+                          className="h-8 text-xs"
+                          type={p.dtype === "int" || p.dtype === "number" ? "number" : "text"}
+                          value={value != null ? String(value) : ""}
+                          onChange={(e) =>
+                            updateSelectedParam(
+                              p.key,
+                              p.dtype === "int" || p.dtype === "number"
+                                ? Number(e.target.value)
+                                : e.target.value
+                            )
+                          }
+                        />
+                      )}
+                      {p.description && <p className="text-[10px] text-muted-foreground">{p.description}</p>}
+                    </div>
+                  );
+                })}
+
+                {/* 绑定区：数据输入引脚 */}
+                {(compOfSelected.inputs ?? []).length > 0 && (
+                  <div className="space-y-2 border-t border-border pt-3">
+                    <p className="text-xs font-semibold text-muted-foreground">数据输入绑定</p>
+                    {(compOfSelected.inputs ?? []).map((pin) => {
+                      const nodeData = selectedNode.getData<EditorNodeData>();
+                      const binding = nodeData.bindings?.[pin.key];
+                      return (
+                        <div key={pin.key} className="space-y-1">
+                          <div className="flex items-center justify-between">
+                            <label className="text-xs">{pin.label} <span className="font-mono text-[10px] text-muted-foreground">{pin.dtype}</span></label>
+                            {binding && (
+                              <button className="text-[10px] text-primary hover:underline" onClick={() => clearBinding(pin.key)}>
+                                解除
+                              </button>
+                            )}
+                          </div>
+                          {binding ? (
+                            <div className="rounded-md border border-blue-500/40 bg-blue-50 px-2 py-1.5 font-mono text-xs dark:bg-blue-950/30">
+                              {binding}
+                            </div>
+                          ) : (
+                            <div className="space-y-1">
+                              {bindingCandidates.length === 0 && (
+                                <p className="text-[10px] text-muted-foreground">无上游节点；也可从画布拖数据线自动绑定</p>
+                              )}
+                              {bindingCandidates.map((cand) => (
+                                <div key={cand.nodeId} className="rounded border border-border">
+                                  <p className="border-b border-border/60 px-2 py-1 text-[10px] font-medium text-muted-foreground">
+                                    {cand.nodeName}
+                                  </p>
+                                  {cand.outputs.map((o) => (
+                                    <button
+                                      key={o.key}
+                                      className="block w-full px-2 py-1 text-left text-xs hover:bg-accent"
+                                      onClick={() => {
+                                        const d = selectedNode.getData<EditorNodeData>();
+                                        selectedNode.setData({
+                                          ...d,
+                                          bindings: { ...d.bindings, [pin.key]: `${cand.nodeId}.${o.key}` },
+                                        } as EditorNodeData);
+                                        setDirty(true);
+                                        force((x) => x + 1);
+                                      }}
+                                    >
+                                      {o.label} <span className="font-mono text-[10px] text-muted-foreground">{o.key}</span>
+                                    </button>
+                                  ))}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
+            {!runResult ? (
+              <p className="pt-8 text-center text-xs text-muted-foreground">尚未运行；点击「运行（仿真）」执行当前流程</p>
+            ) : (
+              <>
+                <div className="flex items-center gap-2">
+                  <Badge variant={runResult.state === "SUCCESS" ? "default" : "destructive"}>
+                    {runResult.state === "SUCCESS" ? "执行成功" : "执行失败"}
+                  </Badge>
+                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3" /> {runResult.durationMs}ms
+                  </span>
+                </div>
+                {runResult.error && (
+                  <p className="rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">{runResult.error}</p>
+                )}
+                {runResult.logs.map((log, i) => (
+                  <div
+                    key={`${log.nodeId}-${i}`}
+                    className={`rounded-md border p-2.5 text-xs ${
+                      log.state === "SUCCESS" ? "border-border" : "border-destructive/50 bg-destructive/5"
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{log.name}</span>
+                      <span className="text-muted-foreground">{log.durationMs}ms</span>
+                    </div>
+                    {Object.entries(log.inputs).map(([k, v]) => (
+                      <p key={k} className="mt-1 text-muted-foreground">
+                        <span className="font-mono">{k}</span> = {fmtValue(v.value)}
+                        <span className="ml-1 opacity-70">（{v.source}）</span>
+                      </p>
+                    ))}
+                    {Object.entries(log.outputs).map(([k, v]) => (
+                      <p key={k} className="mt-0.5 text-foreground/80">
+                        → <span className="font-mono">{k}</span> = {fmtValue(v)}
+                      </p>
+                    ))}
+                    {log.error && <p className="mt-1 text-destructive">{log.error}</p>}
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- 小组件 ---------- */
+
+function fmtValue(v: unknown): string {
+  if (v == null) return "—";
+  if (typeof v === "object") {
+    const obj = v as { _type?: string; length?: number; preview?: unknown[] };
+    if (obj._type === "array") return `[数组·${obj.length}条 ${JSON.stringify(obj.preview).slice(0, 60)}…]`;
+    return JSON.stringify(v).slice(0, 90);
+  }
+  if (typeof v === "number") return String(Math.round(v * 10000) / 10000);
+  return String(v).slice(0, 80);
+}
+
+function PointPicker({ value, onChange }: { value: number | null; onChange: (v: number) => void }) {
+  const [opts, setOpts] = React.useState<{ id: number; name: string; sourceName?: string }[]>([]);
+  React.useEffect(() => {
+    api.dataPoints
+      .list({ pageSize: 200 })
+      .then((res) => setOpts(res.list.map((p) => ({ id: p.id, name: p.name }))))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <Select value={value != null ? String(value) : undefined} onValueChange={(v) => onChange(Number(v))}>
+      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择点位" /></SelectTrigger>
+      <SelectContent className="max-h-64">
+        {opts.map((o) => <SelectItem key={o.id} value={String(o.id)}>{o.name}</SelectItem>)}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function MetamodelPicker({
+  options,
+  value,
+  onChange,
+}: {
+  options: MetamodelOption[];
+  value: number | null;
+  onChange: (v: number) => void;
+}) {
+  return (
+    <Select value={value != null ? String(value) : undefined} onValueChange={(v) => onChange(Number(v))}>
+      <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="选择元模型" /></SelectTrigger>
+      <SelectContent className="max-h-64">
+        {options.map((o) => (
+          <SelectItem key={o.id} value={String(o.id)}>
+            {o.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}

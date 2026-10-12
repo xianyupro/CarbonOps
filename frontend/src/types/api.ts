@@ -831,3 +831,111 @@ export interface KgNodeCreatePayload {
   description?: string;
   sourceText?: string;
 }
+
+// ===================== 组件平台 · 控制流 =====================
+
+/** 组件参数声明（端口=参数） */
+export interface ComponentParam {
+  key: string;
+  label: string;
+  dtype: string; // number/string/int/select/point/metamodel/bool
+  default?: unknown;
+  options?: string[];
+  required?: boolean;
+  bindable?: boolean;
+  min?: number;
+  max?: number;
+  description?: string;
+}
+
+export interface ComponentPin {
+  key: string;
+  label: string;
+  dtype: string;
+}
+
+export interface ComponentDef {
+  code: string;
+  name: string;
+  category: string;
+  description?: string | null;
+  kind: "single" | "condition" | "circulate";
+  paramsSchema?: ComponentParam[] | null;
+  inputs?: ComponentPin[] | null;
+  outputs?: ComponentPin[] | null;
+  runtime: string;
+  refCode?: string | null;
+  uiConfig?: { color?: string } | null;
+}
+
+export interface ComponentRegistry {
+  groups: Record<string, ComponentDef[]>;
+  variables: Record<string, number>;
+}
+
+export interface MetamodelOption {
+  id: number;
+  metaCode: string;
+  name: string;
+  modelType: string;
+}
+
+/** 流程图 JSON（保存/加载格式） */
+export interface FlowGraphNode {
+  id: string;
+  componentCode: string;
+  name: string;
+  x: number;
+  y: number;
+  params: Record<string, unknown>;
+  bindings: Record<string, string>; // paramKey -> "$变量" | "节点Id.输出引脚"
+}
+
+export interface FlowGraphEdge {
+  id: string;
+  source: string;
+  target: string;
+  kind: "control" | "data";
+  sourcePort: string; // next / true / false / loop / exit / 输出引脚key
+  targetPort: string; // in(控制入) / 输入引脚key
+}
+
+export interface FlowGraph {
+  nodes: FlowGraphNode[];
+  edges: FlowGraphEdge[];
+}
+
+export interface FlowProject {
+  id: number;
+  name: string;
+  description?: string | null;
+  graph?: FlowGraph | null;
+  status: string;
+  version: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface FlowNodeLog {
+  nodeId: string;
+  name: string;
+  componentCode: string;
+  state: "RUNNING" | "SUCCESS" | "FAILED";
+  startedAt: string;
+  durationMs: number;
+  inputs: Record<string, { value: unknown; source: string }>;
+  outputs: Record<string, unknown>;
+  error?: string | null;
+}
+
+export interface FlowRun {
+  id: number;
+  projectId: number;
+  mode: string;
+  state: "RUNNING" | "SUCCESS" | "FAILED" | "CANCELLED";
+  startedAt: string;
+  finishedAt?: string | null;
+  durationMs: number;
+  nodeLogs?: FlowNodeLog[] | null;
+  error?: string | null;
+}

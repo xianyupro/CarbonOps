@@ -69,6 +69,12 @@ import type {
   KgNodeCreatePayload,
   KgNodeDetail,
   KgPathResult,
+  ComponentDef,
+  ComponentRegistry,
+  FlowGraph,
+  FlowProject,
+  FlowRun,
+  MetamodelOption,
   Alarm,
   AlarmQuery,
   FormConfig,
@@ -510,6 +516,23 @@ export const api = {
       request<{ nodesCreated: number; edgesCreated: number }>("POST", "/kg/extract", {
         body: { text },
       }),
+  },
+
+  flows: {
+    components: () => request<ComponentRegistry>("GET", "/flows/components"),
+    metamodelOptions: () => request<MetamodelOption[]>("GET", "/flows/components/metamodel-options"),
+    list: () => request<FlowProject[]>("GET", "/flows"),
+    get: (id: number) => request<FlowProject>("GET", `/flows/${id}`),
+    create: (body: { name: string; description?: string; graph?: FlowGraph }) =>
+      request<FlowProject>("POST", "/flows", { body }),
+    update: (
+      id: number,
+      body: { name?: string; description?: string; graph?: FlowGraph; status?: string }
+    ) => request<FlowProject>("PUT", `/flows/${id}`, { body }),
+    delete: (id: number) => request<void>("DELETE", `/flows/${id}`),
+    run: (id: number) =>
+      request<FlowRun>("POST", `/flows/${id}/run`, { body: { mode: "once" } }),
+    runs: (id: number) => request<FlowRun[]>("GET", `/flows/${id}/runs`),
   },
 
   scenarios: {
