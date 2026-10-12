@@ -176,7 +176,7 @@ export function QueryPanel({
       {/* Source picker */}
       <div className="space-y-1.5">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          数据源
+          <span className="font-cyber text-muted-foreground/70">01</span> 数据源
         </Label>
         <Select
           value={String(sourceId)}
@@ -199,7 +199,10 @@ export function QueryPanel({
       <div className="space-y-1.5">
         <div className="flex items-center justify-between">
           <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-            点位（{selectedIds.size} / {points.length}）
+            <span className="font-cyber text-muted-foreground/70">02</span> 点位
+            <span className="font-cyber text-[10px] text-muted-foreground/70">
+              {selectedIds.size}/{points.length}
+            </span>
           </Label>
           {selectedIds.size > 0 ? (
             <button
@@ -263,7 +266,7 @@ export function QueryPanel({
       {/* Time range */}
       <div className="space-y-1.5">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          时间范围
+          <span className="font-cyber text-muted-foreground/70">03</span> 时间范围
         </Label>
         <div className="grid grid-cols-2 gap-1.5">
           {TIME_RANGE_PRESETS.map((p) => (
@@ -286,7 +289,7 @@ export function QueryPanel({
       {/* Aggregation */}
       <div className="space-y-1.5">
         <Label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          聚合
+          <span className="font-cyber text-muted-foreground/70">04</span> 聚合
         </Label>
         <div className="grid grid-cols-2 gap-1.5">
           <Select

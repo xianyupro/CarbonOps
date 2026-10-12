@@ -102,7 +102,7 @@ export function RealtimePanel({
                 <div className="mt-1.5 flex items-baseline gap-1">
                   {v ? (
                     <>
-                      <span className="font-mono text-lg font-semibold tabular-nums text-foreground">
+                      <span className="font-cyber text-lg font-semibold tabular-nums text-foreground">
                         {v.value === null ? "—" : v.value.toFixed(2)}
                       </span>
                       {point?.unit ? (
@@ -115,7 +115,7 @@ export function RealtimePanel({
                     <Skeleton className="h-6 w-16" />
                   )}
                 </div>
-                <div className="mt-0.5 text-[10px] text-muted-foreground">
+                <div className="mt-0.5 font-cyber text-[10px] text-muted-foreground">
                   {v?.timestamp
                     ? new Date(v.timestamp).toLocaleTimeString("zh-CN", {
                         hour12: false,

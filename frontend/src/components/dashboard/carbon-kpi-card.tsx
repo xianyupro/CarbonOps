@@ -75,7 +75,7 @@ export function CarbonKpiCard({
             <Skeleton className="mt-2 h-9 w-32" />
           ) : (
             <div className="mt-1.5 flex items-baseline gap-1.5">
-              <span className="text-[26px] font-bold leading-none tabular-nums tracking-tight">
+              <span className="font-cyber text-[26px] font-bold leading-none tabular-nums tracking-tight">
                 {value === null ? "—" : value.toLocaleString("zh-CN")}
               </span>
               <span className="text-sm text-muted-foreground">{unit}</span>
