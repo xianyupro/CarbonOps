@@ -30,11 +30,11 @@ function CollapsibleSection({
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <div className="border-b border-slate-800">
+    <div className="border-b border-border">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200"
+        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
       >
         <span>{label}</span>
         <ChevronDown
@@ -62,14 +62,14 @@ function PaletteItem({ def }: { def: ComponentDefinition }) {
     <div
       draggable
       onDragStart={onDragStart}
-      className="group flex cursor-grab items-start gap-2 rounded-md border border-transparent p-2 transition-colors hover:border-slate-700 hover:bg-slate-800 active:cursor-grabbing"
+      className="group flex cursor-grab items-start gap-2 rounded-md border border-transparent p-2 transition-colors hover:border-border hover:bg-muted active:cursor-grabbing"
       title={def.description}
     >
-      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded bg-slate-800 text-slate-300 group-hover:bg-slate-700 group-hover:text-white">
+      <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded bg-muted text-slate-600 group-hover:bg-slate-200 group-hover:text-foreground">
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium text-slate-200">
+        <div className="truncate text-xs font-medium text-slate-700">
           {def.label}
         </div>
         <div className="truncate text-[10px] leading-tight text-slate-500">
@@ -94,14 +94,14 @@ function ModelPaletteItem({ model }: { model: ModelRegistry }) {
     <div
       draggable
       onDragStart={onDragStart}
-      className="group flex cursor-grab items-start gap-2 rounded-md border border-transparent p-2 transition-colors hover:border-purple-700/50 hover:bg-slate-800 active:cursor-grabbing"
+      className="group flex cursor-grab items-start gap-2 rounded-md border border-transparent p-2 transition-colors hover:border-purple-700/50 hover:bg-muted active:cursor-grabbing"
       title={model.description ?? model.name}
     >
       <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded bg-purple-900/30 text-purple-400 group-hover:bg-purple-800/40 group-hover:text-purple-300">
         <Brain className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium text-slate-200">
+        <div className="truncate text-xs font-medium text-slate-700">
           {model.name}
         </div>
         <div className="truncate text-[10px] leading-tight text-slate-500">
@@ -175,14 +175,14 @@ export function ComponentPalette({ collapsed = false }: ComponentPaletteProps) {
 
   if (collapsed) {
     return (
-      <aside className="flex w-[44px] shrink-0 flex-col border-r border-slate-800 bg-slate-900" />
+      <aside className="flex w-[44px] shrink-0 flex-col border-r border-border bg-card" />
     );
   }
 
   return (
-    <aside className="flex w-[220px] shrink-0 flex-col border-r border-slate-800 bg-slate-900">
+    <aside className="flex w-[220px] shrink-0 flex-col border-r border-border bg-card">
       {/* 搜索框 */}
-      <div className="border-b border-slate-800 p-2">
+      <div className="border-b border-border p-2">
         <div className="relative">
           <Search className="pointer-events-none absolute left-2 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" />
           <input
@@ -190,7 +190,7 @@ export function ComponentPalette({ collapsed = false }: ComponentPaletteProps) {
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
             placeholder="搜索组件"
-            className="h-8 w-full rounded-md border border-slate-700 bg-slate-800 pl-7 pr-2 text-xs text-slate-200 placeholder:text-slate-500 focus:border-slate-600 focus:outline-none"
+            className="h-8 w-full rounded-md border border-border bg-muted pl-7 pr-2 text-xs text-slate-700 placeholder:text-slate-400 focus:border-primary focus:outline-none"
           />
         </div>
       </div>
@@ -243,7 +243,7 @@ export function ComponentPalette({ collapsed = false }: ComponentPaletteProps) {
         )}
       </div>
 
-      <div className="border-t border-slate-800 px-3 py-2 text-[10px] text-slate-600">
+      <div className="border-t border-border px-3 py-2 text-[10px] text-slate-600">
         拖拽组件到画布
       </div>
     </aside>

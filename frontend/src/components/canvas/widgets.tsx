@@ -49,8 +49,8 @@ function KpiWidget({ component }: { component: ComponentInstance }) {
   const trend = value > 60 ? 1 : value > 30 ? 0 : -1;
 
   return (
-    <div className="flex h-full flex-col justify-center gap-1 rounded-lg border border-slate-700 bg-slate-800/50 p-3">
-      <div className="text-xs text-slate-400">{component.title}</div>
+    <div className="flex h-full flex-col justify-center gap-1 rounded-lg border border-border bg-muted/50 p-3">
+      <div className="text-xs text-slate-500">{component.title}</div>
       <div className="flex items-baseline gap-2">
         <span
           className="text-2xl font-bold tabular-nums"
@@ -58,9 +58,9 @@ function KpiWidget({ component }: { component: ComponentInstance }) {
         >
           {Number(value).toFixed(Number(decimals))}
         </span>
-        <span className="text-sm text-slate-400">{unit as string}</span>
+        <span className="text-sm text-slate-500">{unit as string}</span>
         {showTrend === true || showTrend === "true" ? (
-          <span className={`text-xs ${trend > 0 ? "text-emerald-400" : trend < 0 ? "text-red-400" : "text-slate-400"}`}>
+          <span className={`text-xs ${trend > 0 ? "text-emerald-400" : trend < 0 ? "text-red-400" : "text-slate-500"}`}>
             {trend > 0 ? "↑" : trend < 0 ? "↓" : "→"}
           </span>
         ) : null}
@@ -115,8 +115,8 @@ function ChartWidget({ component }: { component: ComponentInstance }) {
   );
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-slate-700 bg-slate-800/50 p-2">
-      <div className="mb-1 truncate text-xs font-medium text-slate-300">{component.title}</div>
+    <div className="flex h-full flex-col rounded-lg border border-border bg-muted/50 p-2">
+      <div className="mb-1 truncate text-xs font-medium text-slate-600">{component.title}</div>
       <div className="flex-1 overflow-hidden">
         <React.Suspense fallback={<EChartFallback />}>
           <ReactECharts option={option} style={{ height: "100%", minHeight: 80 }} opts={{ renderer: "svg" }} />
@@ -163,8 +163,8 @@ function GaugeWidget({ component }: { component: ComponentInstance }) {
   );
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-slate-700 bg-slate-800/50 p-1">
-      <div className="mb-0.5 truncate text-center text-xs text-slate-400">{component.title}</div>
+    <div className="flex h-full flex-col rounded-lg border border-border bg-muted/50 p-1">
+      <div className="mb-0.5 truncate text-center text-xs text-slate-500">{component.title}</div>
       <div className="flex-1 overflow-hidden">
         <React.Suspense fallback={<EChartFallback />}>
           <ReactECharts option={option} style={{ height: "100%", minHeight: 60 }} opts={{ renderer: "svg" }} />
@@ -191,8 +191,8 @@ function AlarmWidget({ component }: { component: ComponentInstance }) {
   ).slice(0, Number(maxItems));
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-slate-700 bg-slate-800/50">
-      <div className="border-b border-slate-700 px-3 py-1.5 text-xs font-medium text-slate-300">
+    <div className="flex h-full flex-col rounded-lg border border-border bg-muted/50">
+      <div className="border-b border-border px-3 py-1.5 text-xs font-medium text-slate-600">
         {component.title}
         <span className="ml-2 text-slate-500">({items.length})</span>
       </div>
@@ -200,9 +200,9 @@ function AlarmWidget({ component }: { component: ComponentInstance }) {
         {items.map((a, i) => {
           const Icon = a.icon;
           return (
-            <div key={i} className="flex items-center gap-2 border-b border-slate-800 px-3 py-1.5 last:border-0">
+            <div key={i} className="flex items-center gap-2 border-b border-border px-3 py-1.5 last:border-0">
               <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: a.color }} />
-              <span className="flex-1 truncate text-xs text-slate-300">{a.title}</span>
+              <span className="flex-1 truncate text-xs text-slate-600">{a.title}</span>
               <span className="shrink-0 text-[10px] text-slate-500">{a.time}</span>
             </div>
           );
@@ -220,9 +220,9 @@ function StatusWidget({ component }: { component: ComponentInstance }) {
   const isOn = value > 50;
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-800/50 p-2">
+    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-border bg-muted/50 p-2">
       <div
-        className="h-8 w-8 rounded-full ring-4 ring-offset-2 ring-offset-slate-800 transition-colors"
+        className="h-8 w-8 rounded-full ring-4 ring-offset-2 ring-offset-white transition-colors"
         style={{
           backgroundColor: isOn ? (onColor as string) : (offColor as string),
           boxShadow: `0 0 12px ${isOn ? (onColor as string) : (offColor as string)}88`,
@@ -230,7 +230,7 @@ function StatusWidget({ component }: { component: ComponentInstance }) {
           ...(isOn ? { "--tw-ring-color": onColor as string } : { "--tw-ring-color": offColor as string }),
         } as React.CSSProperties}
       />
-      <span className="text-xs text-slate-400">{label as string}</span>
+      <span className="text-xs text-slate-500">{label as string}</span>
     </div>
   );
 }
@@ -262,9 +262,9 @@ function TankWidget({ component }: { component: ComponentInstance }) {
   const pct = Math.min(100, Math.max(0, (value / Number(maxLevel)) * 100));
 
   return (
-    <div className="flex h-full flex-col items-center justify-end gap-1 rounded-lg border border-slate-700 bg-slate-800/50 p-2">
-      <span className="text-xs text-slate-400">{label as string}</span>
-      <div className="relative flex-1 w-16 min-h-[60px] rounded-md border-2 border-slate-600 bg-slate-900 overflow-hidden">
+    <div className="flex h-full flex-col items-center justify-end gap-1 rounded-lg border border-border bg-muted/50 p-2">
+      <span className="text-xs text-slate-500">{label as string}</span>
+      <div className="relative flex-1 w-16 min-h-[60px] rounded-md border-2 border-slate-300 bg-card overflow-hidden">
         <div
           className="absolute bottom-0 left-0 right-0 transition-all duration-500"
           style={{
@@ -276,7 +276,7 @@ function TankWidget({ component }: { component: ComponentInstance }) {
           {/* 液面波纹效果 */}
           <div className="absolute top-0 left-0 right-0 h-1 bg-white/20 rounded-full" />
         </div>
-        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-foreground">
           {value.toFixed(1)}%
         </span>
       </div>
@@ -292,7 +292,7 @@ function ValveWidget({ component }: { component: ComponentInstance }) {
   const isOpen = value > 50;
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-slate-700 bg-slate-800/50 p-2">
+    <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-border bg-muted/50 p-2">
       <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
         {/* 管道 */}
         <rect x="0" y="17" width="14" height="6" fill="#94a3b8" />
@@ -310,7 +310,7 @@ function ValveWidget({ component }: { component: ComponentInstance }) {
           style={{ transition: "all 0.3s" }}
         />
       </svg>
-      <span className="text-xs text-slate-400">{label as string}</span>
+      <span className="text-xs text-slate-500">{label as string}</span>
       <span className="text-[10px]" style={{ color: isOpen ? (onColor as string) : (offColor as string) }}>
         {isOpen ? "开启" : "关闭"}
       </span>
@@ -351,8 +351,8 @@ function MeterWidget({ component }: { component: ComponentInstance }) {
   const angle = -120 + (Math.min(value, Number(max)) - Number(min)) / (Number(max) - Number(min)) * 240;
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-slate-700 bg-slate-800/50 p-2">
-      <span className="text-xs text-slate-400">{label as string}</span>
+    <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-border bg-muted/50 p-2">
+      <span className="text-xs text-slate-500">{label as string}</span>
       <svg width="60" height="60" viewBox="0 0 60 60">
         {/* 表盘背景 */}
         <circle cx="30" cy="30" r="26" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />
@@ -405,20 +405,20 @@ function ModelWidget({ component }: { component: ComponentInstance }) {
 
   if (!mb) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-600 bg-slate-800/50 p-3 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-muted/50 p-3 text-center">
         <Brain className="h-6 w-6 text-slate-500" />
-        <span className="text-xs text-slate-400">点击后绑定模型</span>
+        <span className="text-xs text-slate-500">点击后绑定模型</span>
         <span className="text-[10px] text-slate-600">在右侧属性面板选择模型</span>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-purple-700/50 bg-slate-800/60">
+    <div className="flex h-full flex-col rounded-lg border border-purple-700/50 bg-accent/60">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-slate-700 bg-purple-900/20 px-3 py-1.5">
+      <div className="flex items-center gap-2 border-b border-border bg-purple-900/20 px-3 py-1.5">
         <Brain className="h-4 w-4 shrink-0 text-purple-400" />
-        <span className="flex-1 truncate text-xs font-medium text-slate-200">{component.title}</span>
+        <span className="flex-1 truncate text-xs font-medium text-slate-700">{component.title}</span>
         <span className="rounded bg-purple-800/50 px-1.5 py-0.5 text-[9px] font-mono text-purple-300">
           {mb.versionNo ?? "latest"}
         </span>
@@ -426,7 +426,7 @@ function ModelWidget({ component }: { component: ComponentInstance }) {
           type="button"
           onClick={runModel}
           disabled={running}
-          className="rounded bg-purple-600 px-2 py-0.5 text-[10px] text-white hover:bg-purple-500 disabled:opacity-50"
+          className="rounded bg-purple-600 px-2 py-0.5 text-[10px] text-foreground hover:bg-purple-500 disabled:opacity-50"
         >
           {running ? "运行中…" : "执行"}
         </button>
@@ -459,16 +459,16 @@ function ModelWidget({ component }: { component: ComponentInstance }) {
           <div>
             <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">推理输出</div>
             {running ? (
-              <div className="flex items-center gap-1.5 text-slate-400">
+              <div className="flex items-center gap-1.5 text-slate-500">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 正在推理…
               </div>
             ) : output ? (
-              <div className="space-y-1 rounded bg-slate-900/60 p-2">
+              <div className="space-y-1 rounded bg-card/60 p-2">
                 {Object.entries(output).map(([k, v]) => (
                   <div key={k} className="flex items-start gap-1">
                     <span className="shrink-0 text-slate-500">{k}:</span>
-                    <span className="text-slate-200">{String(v)}</span>
+                    <span className="text-slate-700">{String(v)}</span>
                   </div>
                 ))}
               </div>

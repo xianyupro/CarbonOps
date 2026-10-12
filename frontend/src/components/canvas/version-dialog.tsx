@@ -98,20 +98,20 @@ export function VersionDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="border-slate-800 bg-slate-900 text-slate-200 sm:max-w-md">
+      <DialogContent className="border-border bg-card text-slate-700 sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-slate-100">
             <History className="h-4 w-4 text-blue-400" />
             版本历史
           </DialogTitle>
-          <DialogDescription className="text-slate-400">
+          <DialogDescription className="text-slate-500">
             {formName}
           </DialogDescription>
         </DialogHeader>
 
         {/* 当前版本摘要 */}
-        <div className="flex items-center justify-between rounded-md border border-slate-800 bg-slate-800/40 px-3 py-2">
-          <span className="text-xs text-slate-400">当前版本</span>
+        <div className="flex items-center justify-between rounded-md border border-border bg-muted/40 px-3 py-2">
+          <span className="text-xs text-slate-500">当前版本</span>
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="font-mono">
               {versionNo || "—"}
@@ -124,7 +124,7 @@ export function VersionDialog({
           </div>
         </div>
 
-        <Separator className="bg-slate-800" />
+        <Separator className="bg-muted" />
 
         {/* 版本列表 */}
         <div className="max-h-[340px] overflow-y-auto">
@@ -144,13 +144,13 @@ export function VersionDialog({
                   className={cn(
                     "flex items-center gap-2 rounded-md px-2 py-2 text-xs",
                     v.isCurrent
-                      ? "bg-slate-800"
-                      : "hover:bg-slate-800/40"
+                      ? "bg-muted"
+                      : "hover:bg-muted/40"
                   )}
                 >
                   <Badge
                     variant="outline"
-                    className="font-mono text-slate-300"
+                    className="font-mono text-slate-600"
                   >
                     {v.version}
                   </Badge>
@@ -165,7 +165,7 @@ export function VersionDialog({
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="h-6 gap-1 px-2 text-[11px] text-slate-400 hover:bg-slate-700 hover:text-white"
+                      className="h-6 gap-1 px-2 text-[11px] text-slate-500 hover:bg-slate-200 hover:text-foreground"
                       onClick={() => handleRollback(v)}
                     >
                       <RotateCcw className="h-3 w-3" />

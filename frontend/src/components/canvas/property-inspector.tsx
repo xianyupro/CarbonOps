@@ -80,11 +80,11 @@ function GroupSection({
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   return (
-    <div className="border-b border-slate-800">
+    <div className="border-b border-border">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-400 hover:text-slate-200"
+        className="flex w-full items-center justify-between px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 hover:text-slate-700"
       >
         <span>{label}</span>
         <ChevronDown
@@ -144,13 +144,13 @@ function BindingField({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs text-slate-300">{field.label}</Label>
+      <Label className="text-xs text-slate-600">{field.label}</Label>
 
       {!editing ? (
-        <div className="rounded-md border border-slate-700 bg-slate-800/50 p-2">
+        <div className="rounded-md border border-border bg-muted/50 p-2">
           {binding && binding.sourceCode ? (
             <div className="space-y-0.5 text-xs">
-              <div className="truncate text-slate-300">
+              <div className="truncate text-slate-600">
                 <span className="text-slate-500">数据源：</span>
                 <span className="font-mono text-blue-300">{binding.sourceCode}</span>
                 {binding.agg && binding.agg !== "raw" ? (
@@ -159,7 +159,7 @@ function BindingField({
                   </span>
                 ) : null}
               </div>
-              <div className="truncate text-slate-300">
+              <div className="truncate text-slate-600">
                 <span className="text-slate-500">点位：</span>
                 <span className="font-mono text-emerald-300">{binding.point ?? "—"}</span>
               </div>
@@ -175,7 +175,7 @@ function BindingField({
               type="button"
               size="sm"
               variant="outline"
-              className="h-6 flex-1 border-slate-600 bg-transparent px-2 text-[11px] text-slate-200 hover:bg-slate-700"
+              className="h-6 flex-1 border-slate-300 bg-transparent px-2 text-[11px] text-slate-700 hover:bg-slate-200"
               onClick={openEditor}
             >
               编辑绑定
@@ -185,7 +185,7 @@ function BindingField({
                 type="button"
                 size="sm"
                 variant="ghost"
-                className="h-6 px-2 text-[11px] text-slate-400 hover:text-red-300"
+                className="h-6 px-2 text-[11px] text-slate-500 hover:text-red-300"
                 onClick={clearBinding}
               >
                 清除
@@ -194,13 +194,13 @@ function BindingField({
           </div>
         </div>
       ) : (
-        <div className="space-y-2 rounded-md border border-blue-700/60 bg-slate-800/80 p-2">
+        <div className="space-y-2 rounded-md border border-blue-700/60 bg-muted/80 p-2">
           <div className="space-y-1">
             <span className="text-[10px] uppercase tracking-wide text-slate-500">
               数据源
             </span>
             <Select value={tempSource} onValueChange={(v) => { setTempSource(v); setTempPoint(""); }}>
-              <SelectTrigger className="h-7 border-slate-600 bg-slate-900 text-xs">
+              <SelectTrigger className="h-7 border-slate-300 bg-card text-xs">
                 <SelectValue placeholder="选择数据源" />
               </SelectTrigger>
               <SelectContent>
@@ -217,7 +217,7 @@ function BindingField({
               点位
             </span>
             <Select value={tempPoint} onValueChange={setTempPoint}>
-              <SelectTrigger className="h-7 border-slate-600 bg-slate-900 text-xs">
+              <SelectTrigger className="h-7 border-slate-300 bg-card text-xs">
                 <SelectValue placeholder="选择点位" />
               </SelectTrigger>
               <SelectContent>
@@ -234,7 +234,7 @@ function BindingField({
               聚合方式
             </span>
             <Select value={tempAgg} onValueChange={(v) => setTempAgg(v as AggType)}>
-              <SelectTrigger className="h-7 border-slate-600 bg-slate-900 text-xs">
+              <SelectTrigger className="h-7 border-slate-300 bg-card text-xs">
                 <SelectValue placeholder="选择聚合方式" />
               </SelectTrigger>
               <SelectContent>
@@ -259,7 +259,7 @@ function BindingField({
               type="button"
               size="sm"
               variant="ghost"
-              className="h-6 px-2 text-[11px] text-slate-400"
+              className="h-6 px-2 text-[11px] text-slate-500"
               onClick={() => setEditing(false)}
             >
               取消
@@ -287,11 +287,11 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
 
   if (!modelBinding) {
     return (
-      <div className="border-b border-slate-800 p-3">
-        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <div className="border-b border-border p-3">
+        <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
           模型配置
         </div>
-        <div className="rounded-md border border-dashed border-slate-700 bg-slate-800/30 px-3 py-4 text-center text-xs text-slate-500">
+        <div className="rounded-md border border-dashed border-border bg-muted/30 px-3 py-4 text-center text-xs text-slate-500">
           请从左侧组件库拖入一个模型
         </div>
       </div>
@@ -328,19 +328,19 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
   }
 
   return (
-    <div className="border-b border-slate-800 p-3">
-      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+    <div className="border-b border-border p-3">
+      <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
         模型配置
       </div>
 
       {/* 模型信息 */}
       <div className="mb-3 space-y-0.5 text-xs">
-        <div className="truncate text-slate-300">
+        <div className="truncate text-slate-600">
           <span className="text-slate-500">模型编码：</span>
           <span className="font-mono text-blue-300">{modelBinding.modelCode}</span>
         </div>
         {modelBinding.versionNo ? (
-          <div className="truncate text-slate-400">
+          <div className="truncate text-slate-500">
             <span className="text-slate-500">版本：</span>
             <span className="font-mono">{modelBinding.versionNo}</span>
           </div>
@@ -353,25 +353,25 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
       </div>
       <div className="space-y-1">
         {mappingEntries.length === 0 ? (
-          <div className="rounded border border-slate-700 bg-slate-800/40 px-2 py-1.5 text-[11px] text-slate-500">
+          <div className="rounded border border-border bg-muted/40 px-2 py-1.5 text-[11px] text-slate-500">
             暂无映射
           </div>
         ) : (
           mappingEntries.map(([paramName, mapping]) => (
             <div
               key={paramName}
-              className="flex items-start justify-between gap-1 rounded border border-slate-700 bg-slate-800/50 px-2 py-1.5"
+              className="flex items-start justify-between gap-1 rounded border border-border bg-muted/50 px-2 py-1.5"
             >
               <div className="min-w-0 flex-1 space-y-0.5 text-[11px]">
                 <div className="truncate">
                   <span className="text-slate-500">参数：</span>
                   <span className="font-mono text-amber-300">{paramName}</span>
                 </div>
-                <div className="truncate text-slate-300">
+                <div className="truncate text-slate-600">
                   <span className="text-slate-500">源：</span>
                   <span className="font-mono text-blue-300">{mapping.sourceCode}</span>
                 </div>
-                <div className="truncate text-slate-300">
+                <div className="truncate text-slate-600">
                   <span className="text-slate-500">点：</span>
                   <span className="font-mono text-emerald-300">{mapping.point}</span>
                 </div>
@@ -379,7 +379,7 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
               <button
                 type="button"
                 onClick={() => removeMapping(paramName)}
-                className="mt-0.5 shrink-0 rounded p-0.5 text-slate-500 hover:bg-slate-700 hover:text-red-300"
+                className="mt-0.5 shrink-0 rounded p-0.5 text-slate-500 hover:bg-slate-200 hover:text-red-300"
                 title="删除映射"
               >
                 <X className="h-3 w-3" />
@@ -391,13 +391,13 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
 
       {/* 添加映射表单 */}
       {showAddForm ? (
-        <div className="mt-2 space-y-1.5 rounded-md border border-blue-700/60 bg-slate-800/80 p-2">
+        <div className="mt-2 space-y-1.5 rounded-md border border-blue-700/60 bg-muted/80 p-2">
           <div className="space-y-1">
             <span className="text-[10px] uppercase tracking-wide text-slate-500">
               参数名
             </span>
             <Select value={newParam} onValueChange={setNewParam}>
-              <SelectTrigger className="h-7 border-slate-600 bg-slate-900 text-xs">
+              <SelectTrigger className="h-7 border-slate-300 bg-card text-xs">
                 <SelectValue placeholder="选择参数" />
               </SelectTrigger>
               <SelectContent>
@@ -422,7 +422,7 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
                 setNewPoint("");
               }}
             >
-              <SelectTrigger className="h-7 border-slate-600 bg-slate-900 text-xs">
+              <SelectTrigger className="h-7 border-slate-300 bg-card text-xs">
                 <SelectValue placeholder="选择数据源" />
               </SelectTrigger>
               <SelectContent>
@@ -439,7 +439,7 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
               点位
             </span>
             <Select value={newPoint} onValueChange={setNewPoint}>
-              <SelectTrigger className="h-7 border-slate-600 bg-slate-900 text-xs">
+              <SelectTrigger className="h-7 border-slate-300 bg-card text-xs">
                 <SelectValue placeholder="选择点位" />
               </SelectTrigger>
               <SelectContent>
@@ -465,7 +465,7 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
               type="button"
               size="sm"
               variant="ghost"
-              className="h-6 px-2 text-[11px] text-slate-400"
+              className="h-6 px-2 text-[11px] text-slate-500"
               onClick={() => setShowAddForm(false)}
             >
               取消
@@ -477,7 +477,7 @@ function ModelConfigSection({ component }: { component: ComponentInstance }) {
           type="button"
           size="sm"
           variant="outline"
-          className="mt-2 h-6 w-full border-slate-600 bg-transparent px-2 text-[11px] text-slate-200 hover:bg-slate-700"
+          className="mt-2 h-6 w-full border-slate-300 bg-transparent px-2 text-[11px] text-slate-700 hover:bg-slate-200"
           onClick={() => setShowAddForm(true)}
         >
           <Plus className="h-3 w-3" />
@@ -510,13 +510,13 @@ function FieldRenderer({
 
   return (
     <div className="space-y-1.5">
-      <Label className="text-xs text-slate-300">{field.label}</Label>
+      <Label className="text-xs text-slate-600">{field.label}</Label>
 
       {field.type === "text" ? (
         <Input
           value={String(value ?? "")}
           onChange={(e) => setVal(e.target.value)}
-          className="h-7 border-slate-700 bg-slate-800 text-xs text-slate-100"
+          className="h-7 border-border bg-muted text-xs text-slate-100"
         />
       ) : null}
 
@@ -525,7 +525,7 @@ function FieldRenderer({
           type="number"
           value={value === undefined || value === null ? "" : Number(value)}
           onChange={(e) => setVal(e.target.value === "" ? "" : Number(e.target.value))}
-          className="h-7 border-slate-700 bg-slate-800 text-xs text-slate-100"
+          className="h-7 border-border bg-muted text-xs text-slate-100"
         />
       ) : null}
 
@@ -535,9 +535,9 @@ function FieldRenderer({
             type="color"
             value={String(value ?? "#000000")}
             onChange={(e) => setVal(e.target.value)}
-            className="h-7 w-9 shrink-0 cursor-pointer rounded border border-slate-700 bg-slate-800 p-0.5"
+            className="h-7 w-9 shrink-0 cursor-pointer rounded border border-border bg-muted p-0.5"
           />
-          <span className="font-mono text-xs text-slate-400">
+          <span className="font-mono text-xs text-slate-500">
             {String(value ?? "")}
           </span>
         </div>
@@ -545,7 +545,7 @@ function FieldRenderer({
 
       {field.type === "select" ? (
         <Select value={String(value ?? "")} onValueChange={setVal}>
-          <SelectTrigger className="h-7 border-slate-700 bg-slate-800 text-xs text-slate-100">
+          <SelectTrigger className="h-7 border-border bg-muted text-xs text-slate-100">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -594,13 +594,13 @@ export function PropertyInspector() {
 
   if (!component || !def) {
     return (
-      <aside className="flex w-[280px] shrink-0 flex-col border-l border-slate-800 bg-slate-900">
-        <div className="border-b border-slate-800 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+      <aside className="flex w-[280px] shrink-0 flex-col border-l border-border bg-card">
+        <div className="border-b border-border px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
           属性
         </div>
         <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center text-sm text-slate-500">
           <Link2 className="h-8 w-8 opacity-30" />
-          <div className="font-medium text-slate-400">请选择一个组件</div>
+          <div className="font-medium text-slate-500">请选择一个组件</div>
           <div className="text-xs text-slate-600">
             在画布上点击组件以编辑其属性
           </div>
@@ -612,22 +612,22 @@ export function PropertyInspector() {
   const Icon = def.icon;
 
   return (
-    <aside className="flex w-[280px] shrink-0 flex-col border-l border-slate-800 bg-slate-900">
-      <div className="border-b border-slate-800 px-3 py-2.5">
-        <div className="text-xs font-semibold uppercase tracking-wide text-slate-400">
+    <aside className="flex w-[280px] shrink-0 flex-col border-l border-border bg-card">
+      <div className="border-b border-border px-3 py-2.5">
+        <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
           属性
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto">
         {/* 组件标识 + 标题 */}
-        <div className="space-y-2 border-b border-slate-800 p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded bg-slate-800 text-slate-300">
+            <div className="flex h-7 w-7 items-center justify-center rounded bg-muted text-slate-600">
               <Icon className="h-4 w-4" />
             </div>
             <div className="min-w-0">
-              <div className="truncate text-xs font-medium text-slate-200">
+              <div className="truncate text-xs font-medium text-slate-700">
                 {def.label}
               </div>
               <div className="truncate font-mono text-[10px] text-slate-500">
@@ -636,11 +636,11 @@ export function PropertyInspector() {
             </div>
           </div>
           <div className="space-y-1.5">
-            <Label className="text-xs text-slate-300">标题</Label>
+            <Label className="text-xs text-slate-600">标题</Label>
             <Input
               value={component.title}
               onChange={(e) => updateComponentTitle(component.id, e.target.value)}
-              className="h-7 border-slate-700 bg-slate-800 text-xs text-slate-100"
+              className="h-7 border-border bg-muted text-xs text-slate-100"
             />
           </div>
         </div>
@@ -665,7 +665,7 @@ export function PropertyInspector() {
       </div>
 
       {/* 底部删除 */}
-      <div className="border-t border-slate-800 p-3">
+      <div className="border-t border-border p-3">
         <Button
           variant="destructive"
           className="w-full"

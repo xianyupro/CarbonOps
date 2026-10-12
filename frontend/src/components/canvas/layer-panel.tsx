@@ -29,8 +29,8 @@ function LayerRow({ comp }: { comp: ComponentInstance }) {
       className={cn(
         "group flex items-center gap-1.5 rounded-md px-1.5 py-1.5 text-xs transition-colors",
         isSelected
-          ? "bg-slate-800 text-white"
-          : "text-slate-300 hover:bg-slate-800/60",
+          ? "bg-primary text-primary-foreground"
+          : "text-slate-600 hover:bg-accent/60",
         isHidden && !isSelected && "text-slate-600"
       )}
     >
@@ -42,8 +42,8 @@ function LayerRow({ comp }: { comp: ComponentInstance }) {
           className={cn(
             "flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors",
             isHidden
-              ? "text-slate-600 hover:text-slate-400"
-              : "text-slate-400 hover:text-white"
+              ? "text-slate-600 hover:text-slate-500"
+              : "text-slate-500 hover:text-foreground"
           )}
           title={isHidden ? "显示" : "隐藏"}
         >
@@ -79,7 +79,7 @@ function LayerRow({ comp }: { comp: ComponentInstance }) {
             "flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors",
             comp.locked
               ? "text-amber-400 hover:text-amber-300"
-              : "text-slate-600 opacity-0 hover:text-slate-400 group-hover:opacity-100"
+              : "text-slate-600 opacity-0 hover:text-slate-500 group-hover:opacity-100"
           )}
           title={comp.locked ? "解锁" : "锁定"}
         >
@@ -106,12 +106,12 @@ export function LayerPanel() {
   const isEditMode = mode === "edit";
 
   return (
-    <aside className="flex w-[220px] shrink-0 flex-col border-l border-slate-800 bg-slate-900">
+    <aside className="flex w-[220px] shrink-0 flex-col border-l border-border bg-card">
       {/* 面板标题 */}
-      <div className="flex items-center justify-between border-b border-slate-800 px-3 py-2">
+      <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <div className="flex items-center gap-1.5">
-          <Layers className="h-3.5 w-3.5 text-slate-400" />
-          <span className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+          <Layers className="h-3.5 w-3.5 text-slate-500" />
+          <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
             图层
           </span>
         </div>
@@ -137,18 +137,18 @@ export function LayerPanel() {
 
       {/* 选中组件的层级操作（仅编辑模式） */}
       {isEditMode && selectedComponentId ? (
-        <div className="flex items-center gap-1 border-t border-slate-800 px-2 py-1.5">
+        <div className="flex items-center gap-1 border-t border-border px-2 py-1.5">
           <button
             type="button"
             onClick={() => bringToFront(selectedComponentId)}
-            className="flex-1 rounded bg-slate-800 px-2 py-1 text-[11px] text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
+            className="flex-1 rounded bg-muted px-2 py-1 text-[11px] text-slate-600 transition-colors hover:bg-slate-200 hover:text-foreground"
           >
             置顶
           </button>
           <button
             type="button"
             onClick={() => sendToBack(selectedComponentId)}
-            className="flex-1 rounded bg-slate-800 px-2 py-1 text-[11px] text-slate-300 transition-colors hover:bg-slate-700 hover:text-white"
+            className="flex-1 rounded bg-muted px-2 py-1 text-[11px] text-slate-600 transition-colors hover:bg-slate-200 hover:text-foreground"
           >
             置底
           </button>

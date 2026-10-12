@@ -26,18 +26,18 @@ function ThemeCard({
       className={cn(
         "group flex w-full items-center gap-2.5 rounded-md border p-2 text-left transition-colors",
         active
-          ? "border-blue-500 bg-slate-800"
-          : "border-transparent bg-slate-800/40 hover:border-slate-700 hover:bg-slate-800"
+          ? "border-blue-500 bg-muted"
+          : "border-transparent bg-muted/40 hover:border-border hover:bg-muted"
       )}
     >
       {/* 色彩预览条：background / primaryColor / accentColor */}
-      <div className="flex h-8 w-14 shrink-0 overflow-hidden rounded ring-1 ring-slate-700">
+      <div className="flex h-8 w-14 shrink-0 overflow-hidden rounded ring-1 ring-border">
         <div className="h-full flex-1" style={{ background: theme.background }} />
         <div className="h-full flex-1" style={{ background: theme.primaryColor }} />
         <div className="h-full flex-1" style={{ background: theme.accentColor }} />
       </div>
 
-      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-200">
+      <span className="min-w-0 flex-1 truncate text-xs font-medium text-slate-700">
         {theme.name}
       </span>
 
@@ -53,11 +53,11 @@ export function ThemePanel() {
   const background = useEditorStore((s) => s.pageConfig.canvas.background);
 
   return (
-    <aside className="flex w-[220px] shrink-0 flex-col border-l border-slate-800 bg-slate-900">
+    <aside className="flex w-[220px] shrink-0 flex-col border-l border-border bg-card">
       {/* 面板标题 */}
-      <div className="flex items-center gap-1.5 border-b border-slate-800 px-3 py-2">
-        <Palette className="h-3.5 w-3.5 text-slate-400" />
-        <span className="text-xs font-semibold uppercase tracking-wide text-slate-300">
+      <div className="flex items-center gap-1.5 border-b border-border px-3 py-2">
+        <Palette className="h-3.5 w-3.5 text-slate-500" />
+        <span className="text-xs font-semibold uppercase tracking-wide text-slate-600">
           行业主题
         </span>
       </div>

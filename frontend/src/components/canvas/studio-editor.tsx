@@ -113,24 +113,24 @@ export function StudioEditor({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-slate-950">
+    <div className="fixed inset-0 z-50 flex flex-col bg-slate-50">
       {/* 顶部工具栏 */}
-      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-900 px-3">
+      <header className="flex h-12 shrink-0 items-center gap-3 border-b border-border bg-card px-3">
         {/* 左侧：返回 + 名称 */}
         <Button
           variant="ghost"
           size="sm"
-          className="text-slate-300 hover:bg-slate-800 hover:text-white"
+          className="text-slate-600 hover:bg-muted hover:text-foreground"
           onClick={handleClose}
         >
           <ArrowLeft className="h-4 w-4" />
           返回列表
         </Button>
 
-        <div className="h-5 w-px bg-slate-700" />
+        <div className="h-5 w-px bg-slate-200" />
 
         <div className="flex min-w-0 items-center gap-2">
-          <span className="truncate text-sm font-medium text-slate-200">
+          <span className="truncate text-sm font-medium text-slate-700">
             {formName}
           </span>
           {dirty ? (
@@ -143,15 +143,15 @@ export function StudioEditor({
 
         {/* 中间：模式切换 + 撤销重做 + 辅助面板 */}
         <div className="mx-auto flex items-center gap-3">
-          <div className="flex items-center rounded-md border border-slate-700 bg-slate-800 p-0.5">
+          <div className="flex items-center rounded-md border border-border bg-muted p-0.5">
             <button
               type="button"
               onClick={() => setMode("edit")}
               className={cn(
                 "flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors",
                 mode === "edit"
-                  ? "bg-slate-600 text-white"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-slate-600 text-foreground"
+                  : "text-slate-500 hover:text-slate-700"
               )}
             >
               <Pencil className="h-3 w-3" />
@@ -163,8 +163,8 @@ export function StudioEditor({
               className={cn(
                 "flex items-center gap-1 rounded px-2.5 py-1 text-xs font-medium transition-colors",
                 mode === "preview"
-                  ? "bg-slate-600 text-white"
-                  : "text-slate-400 hover:text-slate-200"
+                  ? "bg-slate-600 text-foreground"
+                  : "text-slate-500 hover:text-slate-700"
               )}
             >
               <Eye className="h-3 w-3" />
@@ -172,12 +172,12 @@ export function StudioEditor({
             </button>
           </div>
 
-          <div className="h-5 w-px bg-slate-700" />
+          <div className="h-5 w-px bg-slate-200" />
 
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-slate-300 hover:bg-slate-800"
+            className="h-8 w-8 text-slate-600 hover:bg-muted"
             disabled={!canUndo}
             onClick={undo}
             title="撤销"
@@ -187,7 +187,7 @@ export function StudioEditor({
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-slate-300 hover:bg-slate-800"
+            className="h-8 w-8 text-slate-600 hover:bg-muted"
             disabled={!canRedo}
             onClick={redo}
             title="重做"
@@ -198,13 +198,13 @@ export function StudioEditor({
           {/* 辅助面板切换（仅编辑模式） */}
           {mode === "edit" ? (
             <>
-              <div className="h-5 w-px bg-slate-700" />
+              <div className="h-5 w-px bg-slate-200" />
               <Button
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "gap-1 text-slate-300 hover:bg-slate-800",
-                  showLayers && "bg-slate-800 text-white"
+                  "gap-1 text-slate-600 hover:bg-muted",
+                  showLayers && "bg-primary text-primary-foreground"
                 )}
                 onClick={() => {
                   setShowLayers((v) => !v);
@@ -219,8 +219,8 @@ export function StudioEditor({
                 variant="ghost"
                 size="sm"
                 className={cn(
-                  "gap-1 text-slate-300 hover:bg-slate-800",
-                  showThemes && "bg-slate-800 text-white"
+                  "gap-1 text-slate-600 hover:bg-muted",
+                  showThemes && "bg-primary text-primary-foreground"
                 )}
                 onClick={() => {
                   setShowThemes((v) => !v);
@@ -237,7 +237,7 @@ export function StudioEditor({
           <Button
             variant="ghost"
             size="sm"
-            className="gap-1 text-slate-300 hover:bg-slate-800"
+            className="gap-1 text-slate-600 hover:bg-muted"
             onClick={() => setShowVersions(true)}
             title="版本管理"
           >
@@ -248,21 +248,21 @@ export function StudioEditor({
 
         {/* 右侧：缩放 + 保存 + 发布 */}
         <div className="flex items-center gap-2">
-          <div className="flex items-center rounded-md border border-slate-700 bg-slate-800">
+          <div className="flex items-center rounded-md border border-border bg-muted">
             <button
               type="button"
-              className="flex h-7 w-7 items-center justify-center text-slate-400 hover:text-white"
+              className="flex h-7 w-7 items-center justify-center text-slate-500 hover:text-foreground"
               onClick={() => setZoom(zoom - 0.1)}
               title="缩小"
             >
               <ZoomOut className="h-3.5 w-3.5" />
             </button>
-            <span className="w-12 text-center font-mono text-[11px] text-slate-300">
+            <span className="w-12 text-center font-mono text-[11px] text-slate-600">
               {Math.round(zoom * 100)}%
             </span>
             <button
               type="button"
-              className="flex h-7 w-7 items-center justify-center text-slate-400 hover:text-white"
+              className="flex h-7 w-7 items-center justify-center text-slate-500 hover:text-foreground"
               onClick={() => setZoom(zoom + 0.1)}
               title="放大"
             >
@@ -273,7 +273,7 @@ export function StudioEditor({
           <Button
             size="sm"
             variant="outline"
-            className="border-slate-700 bg-transparent text-slate-200 hover:bg-slate-800 hover:text-white"
+            className="border-border bg-transparent text-slate-700 hover:bg-muted hover:text-foreground"
             disabled={saving}
             onClick={() => void handleSave()}
           >
@@ -304,7 +304,7 @@ export function StudioEditor({
         <ComponentPalette />
 
         {/* 画布区域 */}
-        <main className="relative min-w-0 flex-1 overflow-hidden bg-slate-950">
+        <main className="relative min-w-0 flex-1 overflow-hidden bg-slate-50">
           <div
             className="h-full w-full"
             style={{
