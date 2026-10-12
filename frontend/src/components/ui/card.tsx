@@ -2,24 +2,16 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 
-const cardVariants = cva(
-  "rounded-xl text-card-foreground transition-all",
-  {
+const cardVariants = cva("text-card-foreground", {
     variants: {
       variant: {
-        default:
-          "panel-cyber relative overflow-hidden rounded-xl border border-primary/15",
-        elevated:
-          "panel-cyber relative overflow-hidden rounded-xl border border-primary/15 shadow-card hover:shadow-glow-cyan",
-        glass:
-          "glass-card border border-primary/20 shadow-card",
-        glow:
-          "border border-primary/30 bg-card shadow-glow-cyan hover:shadow-card-lg",
-        flat: "border border-primary/15 bg-muted/30",
-        gradient:
-          "panel-cyber relative overflow-hidden rounded-xl border border-primary/20 bg-gradient-to-br from-primary/15 via-primary/5 to-card text-card-foreground",
-        cyber:
-          "panel-cyber relative overflow-hidden rounded-xl border border-primary/20 shadow-card hover:shadow-glow-cyan",
+        default: "relative overflow-hidden border border-border bg-card",
+        elevated: "relative overflow-hidden border border-border bg-card shadow-card",
+        glass: "border border-border bg-card",
+        glow: "border border-border bg-card",
+        flat: "border border-border bg-muted/30",
+        gradient: "border border-border bg-card",
+        cyber: "relative overflow-hidden border border-border bg-card",
       },
     },
     defaultVariants: {

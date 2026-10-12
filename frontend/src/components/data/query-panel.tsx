@@ -55,8 +55,9 @@ export function QueryPanel({
   const [pointKeyword, setPointKeyword] = React.useState("");
   const [selectedIds, setSelectedIds] = React.useState<Set<number>>(new Set());
 
+  // 默认「全部数据」（ms=0），适配演示数据集的非实时时间轴
   const [rangeMs, setRangeMs] = React.useState<number>(
-    TIME_RANGE_PRESETS[2].ms
+    TIME_RANGE_PRESETS[0].ms
   );
   const [interval, setInterval] = React.useState<TimeBucket>("1 hour");
   const [agg, setAgg] = React.useState<Aggregation>("AVG");
@@ -142,7 +143,9 @@ export function QueryPanel({
     }
     const selectedPoints = points.filter((p) => selectedIds.has(p.id));
     const end = new Date();
-    const start = new Date(end.getTime() - rangeMs);
+    // ms=0 表示「全部数据」：起点取 2026-01-01，覆盖全部导入的历史数据
+    const start =
+      rangeMs === 0 ? new Date(2026, 0, 1) : new Date(end.getTime() - rangeMs);
     const payload: QueryPayload = {
       pointIds: Array.from(selectedIds),
       start: start.toISOString(),

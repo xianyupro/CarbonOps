@@ -170,15 +170,18 @@ export default function MetamodelLibraryPage() {
                 setModelType(modelType === t ? "all" : t);
                 setPage(1);
               }}
-              className={`flex items-center justify-between rounded-lg border p-4 text-left transition-colors ${
-                modelType === t ? "border-primary bg-accent" : "border-border bg-card hover:border-primary/40"
+              className={`border px-3 py-2.5 text-left transition-colors ${
+                modelType === t
+                  ? "border-primary bg-accent"
+                  : "border-border bg-card hover:border-primary/50"
               }`}
             >
-              <div>
-                <p className="text-sm font-medium">{TYPE_LABEL[t]}</p>
-                <p className="mt-1 text-2xl font-semibold tabular-nums">{typeCount(t)}</p>
-              </div>
-              <Network className="h-8 w-8 text-muted-foreground/40" />
+              <p className="font-cyber text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+                MM-{t.slice(0, 4)} · {TYPE_LABEL[t]}
+              </p>
+              <p className="mt-1 font-cyber text-2xl font-bold leading-none tabular-nums">
+                {String(typeCount(t)).padStart(3, "0")}
+              </p>
             </button>
           )
         )}

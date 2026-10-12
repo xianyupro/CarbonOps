@@ -207,15 +207,16 @@ export default function MetamodelRegistryPage() {
         {MODEL_TYPES.map((t) => (
           <div
             key={t.value}
-            className={`flex items-center justify-between rounded-lg border px-4 py-3 ${
+            className={`border px-3 py-2.5 ${
               modelType === t.value ? "border-primary bg-accent" : "border-border bg-card"
             }`}
           >
-            <div>
-              <p className="text-xs text-muted-foreground">{t.label}</p>
-              <p className="mt-0.5 text-xl font-semibold tabular-nums">{typeCount(t.value)}</p>
-            </div>
-            <span className="text-[10px] tracking-wider text-muted-foreground/60">已登记</span>
+            <p className="font-cyber text-[10px] uppercase tracking-[0.16em] text-muted-foreground">
+              {t.label} · 已登记
+            </p>
+            <p className="mt-1 font-cyber text-xl font-bold leading-none tabular-nums">
+              {String(typeCount(t.value)).padStart(3, "0")}
+            </p>
           </div>
         ))}
       </div>

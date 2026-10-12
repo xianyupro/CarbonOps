@@ -79,6 +79,7 @@ export interface TimeRangePreset {
 }
 
 export const TIME_RANGE_PRESETS: TimeRangePreset[] = [
+  { label: "全部数据", ms: 0 },
   { label: "近1小时", ms: 60 * 60 * 1000 },
   { label: "近6小时", ms: 6 * 60 * 60 * 1000 },
   { label: "近24小时", ms: 24 * 60 * 60 * 1000 },

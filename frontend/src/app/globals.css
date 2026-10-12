@@ -51,7 +51,7 @@
     --input: 214 22% 84%;
     --ring: 174 83% 30%;
 
-    --radius: 0.625rem;
+    --radius: 0.25rem;   /* 工业风：小圆角 */
 
     /* ===== 侧边栏浅色 ===== */
     --sidebar: 175 20% 97%;
@@ -130,15 +130,11 @@
   /* === Cyber 面板：白卡 + 顶部描边 + 角部淡光 === */
   .panel-cyber {
     position: relative;
-    background: linear-gradient(
-      135deg,
-      hsl(0 0% 100% / 0.92) 0%,
-      hsl(175 20% 98% / 0.92) 100%
-    );
+    background: hsl(var(--card));
     backdrop-filter: blur(20px) saturate(150%);
     -webkit-backdrop-filter: blur(20px) saturate(150%);
-    border: 1px solid hsl(174 50% 40% / 0.16);
-    border-radius: 14px;
+    border: 1px solid hsl(var(--border));
+    border-radius: 4px;
     overflow: hidden;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
   }
@@ -172,8 +168,7 @@
     border-radius: 50%;
   }
   .panel-cyber:hover {
-    border-color: hsl(174 60% 40% / 0.35);
-    box-shadow: 0 8px 24px hsl(222 47% 11% / 0.08);
+    border-color: hsl(174 60% 40% / 0.4);
   }
 
   /* 面板标题前的品牌色高亮条 */
