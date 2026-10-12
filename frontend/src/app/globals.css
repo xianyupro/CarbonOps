@@ -393,6 +393,16 @@
   }
 }
 
+/* === 控制流连线：流动虚线动画 === */
+@keyframes flow-dash {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+.flow-line-anim {
+  animation: flow-dash 0.7s linear infinite;
+}
+
 /* === Reduced motion 用户：禁用所有动效 === */
 @media (prefers-reduced-motion: reduce) {
   *,

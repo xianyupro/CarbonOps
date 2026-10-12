@@ -17,6 +17,99 @@ from app.db.session import SessionLocal  # noqa: E402
 from app.models.flow import ComponentDef  # noqa: E402
 
 BUILTIN_COMPONENTS: list[dict] = [
+    # ===== 工艺工序（1号挥发窑流程，序号=工艺顺序） =====
+    dict(
+        code="proc.kiln_feed", name="① 给料工序", category="工艺工序", kind="single",
+        description="球团经圆盘给料机入窑：给料频率决定处理量",
+        params_schema=[
+            {"key": "freq", "label": "给料频率设定", "dtype": "number", "default": 10, "unit": "Hz"},
+        ],
+        inputs=[{"key": "pellet", "label": "球团工件", "dtype": "workpiece"}],
+        outputs=[
+            {"key": "throughput", "label": "入窑量", "dtype": "number"},
+            {"key": "stream", "label": "物料流", "dtype": "any"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#ca8a04"},
+    ),
+    dict(
+        code="proc.kiln_roast", name="② 焙烧挥发", category="工艺工序", kind="single",
+        description="窑内高温焙烧：有价金属挥发进入烟气，渣相完成铁酸盐化",
+        params_schema=[
+            {"key": "tailTempSet", "label": "窑尾温度设定", "dtype": "number", "default": 620, "unit": "℃"},
+        ],
+        inputs=[
+            {"key": "stream", "label": "物料流", "dtype": "any"},
+            {"key": "tailTemp", "label": "窑尾温度", "dtype": "number"},
+        ],
+        outputs=[
+            {"key": "volatilized", "label": "挥发效率", "dtype": "number"},
+            {"key": "gas", "label": "高温烟气", "dtype": "any"},
+            {"key": "slag", "label": "炉渣工件", "dtype": "workpiece"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#dc2626"},
+    ),
+    dict(
+        code="proc.kiln_cool", name="③ 烟气冷却", category="工艺工序", kind="single",
+        description="高温烟气经余热锅炉降温并回收余热",
+        params_schema=[],
+        inputs=[{"key": "gas", "label": "高温烟气", "dtype": "any"}],
+        outputs=[
+            {"key": "cooledGas", "label": "冷却烟气", "dtype": "any"},
+            {"key": "steam", "label": "回收蒸汽量", "dtype": "number"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#0891b2"},
+    ),
+    dict(
+        code="proc.kiln_dust", name="④ 收尘工序", category="工艺工序", kind="single",
+        description="电收尘器捕集烟尘：富集铅锌镉等有价金属",
+        params_schema=[
+            {"key": "efficiency", "label": "收尘效率", "dtype": "number", "default": 0.985},
+        ],
+        inputs=[{"key": "cooledGas", "label": "冷却烟气", "dtype": "any"}],
+        outputs=[
+            {"key": "dust", "label": "烟尘工件", "dtype": "workpiece"},
+            {"key": "cleanGas", "label": "净化烟气", "dtype": "any"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#7c3aed"},
+    ),
+    dict(
+        code="proc.kiln_stack", name="⑤ 达标排放", category="工艺工序", kind="single",
+        description="净化烟气经增压风机排放，CO/含尘浓度在线监测",
+        params_schema=[],
+        inputs=[
+            {"key": "cleanGas", "label": "净化烟气", "dtype": "any"},
+            {"key": "co", "label": "CO 浓度", "dtype": "number"},
+        ],
+        outputs=[
+            {"key": "compliant", "label": "是否达标", "dtype": "bool"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#16a34a"},
+    ),
+    # ===== 工件算子（物料在流程中的形态） =====
+    dict(
+        code="work.pellet", name="球团工件", category="工件算子", kind="single",
+        description="入窑球团物料：携带成分与含水率属性，随流程传递演化",
+        params_schema=[
+            {"key": "moisture", "label": "含水率", "dtype": "number", "default": 12, "unit": "%"},
+            {"key": "znGrade", "label": "锌品位", "dtype": "number", "default": 18, "unit": "%"},
+        ],
+        inputs=[],
+        outputs=[
+            {"key": "pellet", "label": "球团", "dtype": "workpiece"},
+            {"key": "grade", "label": "综合品位", "dtype": "number"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#a16207"},
+    ),
+    dict(
+        code="work.dust", name="烟尘工件", category="工件算子", kind="single",
+        description="收尘产出的富集烟尘：富含铅锌镉铟，外送有价金属回收",
+        params_schema=[],
+        inputs=[{"key": "from", "label": "来源物料", "dtype": "any"}],
+        outputs=[
+            {"key": "value", "label": "有价金属富集度", "dtype": "number"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#a16207"},
+    ),
     # ===== 逻辑控制 =====
     dict(
         code="logic.start", name="开始", category="逻辑控制", kind="single",

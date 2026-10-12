@@ -254,8 +254,9 @@ export default function FlowEditorPage() {
       container: containerRef.current,
       background: { color: "#f8fafc" },
       grid: { size: 20, type: "dot", args: { color: "#cbd5e1", thickness: 1 } },
-      panning: true,
-      mousewheel: { zoomAtMousePosition: true, minScale: 0.4, maxScale: 2, modifiers: ["ctrl"] },
+      // 右键拖动画布；滚轮直接缩放（工业编辑器惯例）
+      panning: { enabled: true, eventTypes: ["rightMouseDown", "mouseWheel"] },
+      mousewheel: { zoomAtMousePosition: true, minScale: 0.3, maxScale: 2.5, modifiers: [] },
       connecting: {
         allowBlank: false,
         allowLoop: false,
@@ -309,7 +310,8 @@ export default function FlowEditorPage() {
         }
       }
       edge.attr("line/stroke", isControl ? "#0d9488" : "#2563eb");
-      edge.attr("line/strokeDasharray", isControl ? null : "5 3");
+      edge.attr("line/strokeDasharray", isControl ? "8 4" : "4 3");
+      edge.attr("line/class", "flow-line-anim");
       edge.attr("line/targetMarker", isControl
         ? { name: "block", width: 8, height: 6 }
         : { name: "circle", r: 2.5 });
@@ -381,7 +383,8 @@ export default function FlowEditorPage() {
             attrs: {
               line: {
                 stroke: isControl ? "#0d9488" : "#2563eb",
-                strokeDasharray: isControl ? null : "5 3",
+                strokeDasharray: isControl ? "8 4" : "4 3",
+                class: "flow-line-anim",
                 strokeWidth: 1.6,
                 targetMarker: isControl
                   ? { name: "block", width: 8, height: 6 }
@@ -405,14 +408,28 @@ export default function FlowEditorPage() {
       .catch(() => toast.error("流程加载失败"));
   }
 
-  function addComponent(comp: ComponentDef) {
+  function addComponentAt(comp: ComponentDef, gx?: number, gy?: number) {
     const g = graphRef.current;
     if (!g) return;
     const count = g.getNodes().length;
     const id = `n${Date.now().toString(36)}${count}`;
-    const pos = g.graphToLocal({ x: 120 + (count % 5) * 40, y: 60 + (count % 6) * 36 });
-    g.addNode(createFlowNode(comp, pos.x, pos.y, id));
+    let x: number;
+    let y: number;
+    if (gx != null && gy != null) {
+      ({ x, y } = { x: gx, y: gy });
+    } else {
+      // 画布内容区中心附近错落放置
+      const area = g.getContentArea();
+      const center = g.graphToLocal({ x: area.x + area.width / 2, y: area.y + area.height / 2 });
+      x = center.x - NODE_W / 2 + (count % 5) * 36;
+      y = center.y - 20 + (count % 6) * 30;
+    }
+    g.addNode(createFlowNode(comp, x, y, id));
     setDirty(true);
+  }
+
+  function addComponent(comp: ComponentDef) {
+    addComponentAt(comp);
   }
 
   function exportGraph(): FlowGraph {
@@ -605,11 +622,16 @@ export default function FlowEditorPage() {
               </p>
               <div className="space-y-1">
                 {comps.map((c) => (
-                  <button
+                  <div
                     key={c.code}
                     title={c.description ?? ""}
-                    onClick={() => addComponent(c)}
-                    className="group flex w-full items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:border-border hover:bg-accent"
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/x-component", c.code);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    onClick={() => addComponentAt(c)}
+                    className="group flex w-full cursor-grab items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:border-border hover:bg-accent active:cursor-grabbing"
                   >
                     <span
                       className="h-2 w-2 shrink-0 rounded-full"
@@ -617,14 +639,15 @@ export default function FlowEditorPage() {
                     />
                     <span className="truncate font-medium">{c.name}</span>
                     <Plus className="ml-auto h-3 w-3 opacity-0 group-hover:opacity-60" />
-                  </button>
+                  </div>
                 ))}
               </div>
             </div>
           ))}
         </div>
         <div className="border-t border-border p-2 text-[10px] leading-relaxed text-muted-foreground">
-          点击组件添加到画布；从端口拖出连线（纵向=控制流，横向=数据流）
+          拖拽组件到画布（或点击添加）；从端口拖出连线：实线=控制流、虚线=数据流；
+          滚轮缩放、右键拖动画布
         </div>
       </div>
 
@@ -663,7 +686,21 @@ export default function FlowEditorPage() {
             </Button>
           </div>
         </div>
-        <div className="relative min-h-0 flex-1">
+        <div
+          className="relative min-h-0 flex-1"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const code = e.dataTransfer.getData("application/x-component");
+            const comp = compByCode.get(code);
+            if (!comp || !graphRef.current) return;
+            const local = graphRef.current.clientToLocal(e.clientX, e.clientY);
+            addComponentAt(comp, local.x - NODE_W / 2, local.y - 20);
+          }}
+        >
           <div ref={containerRef} className="h-full" />
           <div
             ref={minimapRef}

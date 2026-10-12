@@ -69,6 +69,8 @@ class FlowEngine:
         self.variables = dict(variables or {})
         self.node_outputs: dict[str, dict[str, Any]] = {}
         self.logs: list[dict] = []
+        self._executed: set[str] = set()
+        self._running: set[str] = set()
 
         self.nodes: dict[str, dict] = {n["id"]: n for n in graph.get("nodes", [])}
         self.edges: list[dict] = graph.get("edges", [])
@@ -90,12 +92,19 @@ class FlowEngine:
             # "节点Id.输出引脚"
             if "." in binding:
                 src_node, out_key = binding.split(".", 1)
+                if src_node not in self.node_outputs:
+                    # 惰性求值：数据源型节点（工件/常量/点位）无控制入边时按需执行
+                    if src_node in self.nodes and src_node not in self._running:
+                        self._execute_node(src_node)
+                    else:
+                        raise ValueError(f"绑定源节点 {src_node} 尚未执行")
                 src_outputs = self.node_outputs.get(src_node)
-                if src_outputs is None:
-                    raise ValueError(f"绑定源节点 {src_node} 尚未执行")
-                if out_key not in src_outputs:
+                if src_outputs is None or out_key not in src_outputs:
                     raise ValueError(f"绑定源 {src_node}.{out_key} 无效")
-                return src_outputs[out_key], f"← {self.nodes.get(src_node, {}).get('name', src_node)}.{out_key}"
+                return (
+                    src_outputs[out_key],
+                    f"← {self.nodes.get(src_node, {}).get('name', src_node)}.{out_key}",
+                )
             raise ValueError(f"绑定协议不合法: {binding}")
         val = params.get(key, schema.get("default"))
         if val is None and schema.get("required"):
@@ -104,6 +113,8 @@ class FlowEngine:
 
     # ---------- 节点执行 ----------
     def _execute_node(self, node_id: str) -> None:
+        if node_id in self._running:
+            raise ValueError(f"节点 {node_id} 存在循环依赖")
         node = self.nodes[node_id]
         comp = self.components.get(node.get("componentCode", ""))
         if comp is None:
@@ -121,6 +132,7 @@ class FlowEngine:
             "error": None,
         }
         self.logs.append(log)
+        self._running.add(node_id)
         t0 = time.perf_counter()
         try:
             resolved: dict[str, Any] = {}
@@ -144,6 +156,8 @@ class FlowEngine:
             log["error"] = str(e)
             raise
         finally:
+            self._running.discard(node_id)
+            self._executed.add(node_id)
             log["durationMs"] = int((time.perf_counter() - t0) * 1000)
 
     @staticmethod
@@ -184,6 +198,9 @@ class FlowEngine:
             return {"accepted": True}
         if runtime == "output" and ref == "alarm":
             return self._run_alarm(p)
+
+        if runtime == "builtin" and ref == "process_sim":
+            return self._run_process_sim(comp, p)
 
         # 仿真兜底：未实现运行时输出空
         return {}
@@ -296,6 +313,25 @@ class FlowEngine:
             },
             "confidence": 0.92,
         }
+
+    def _run_process_sim(self, comp: Any, p: dict) -> dict[str, Any]:
+        """工艺工序仿真：从数值输入推导合理输出，工件类输出带阶段标记。"""
+        import zlib
+
+        num_in = [float(v) for v in p.values() if isinstance(v, (int, float))]
+        base = sum(num_in) / len(num_in) if num_in else 1.0
+        out: dict[str, Any] = {}
+        for pin in comp.outputs or []:
+            key = pin["key"]
+            dtype = pin.get("dtype")
+            if dtype == "number":
+                factor = 0.85 + (zlib.crc32(key.encode()) % 30) / 100
+                out[key] = round(base * factor, 4)
+            elif dtype == "bool":
+                out[key] = True
+            else:
+                out[key] = {"stage": comp.name, "workpiece": True, "simulated": True}
+        return out
 
     def _run_alarm(self, p: dict) -> dict[str, Any]:
         trigger = p.get("trigger")
