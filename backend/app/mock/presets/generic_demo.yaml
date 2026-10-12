@@ -1,0 +1,19 @@
+# 通用演示数据源（混合协议）
+name: 综合能源监测
+code: GENERIC_ENERGY
+protocol: HTTP
+host: 10.10.0.1
+port: 8080
+industry: 通用
+collect_interval_ms: 5000
+description: 通用演示数据源-能源与碳排放综合监测（Mock）
+points:
+  - {code: TOTAL_ENERGY, name: 综合能耗, unit: "GJ/h", process_stage: 总体, device: 能源中心, gen_base: 1850, gen_amplitude: 120, gen_period_s: 3600, gen_noise: 10}
+  - {code: ELEC_LOAD, name: 电力负荷, unit: "MW", process_stage: 总体, device: 能源中心, gen_base: 45.5, gen_amplitude: 5, gen_period_s: 1800, gen_noise: 0.5}
+  - {code: GAS_CONSUME, name: 燃气消耗, unit: "Nm³/h", process_stage: 总体, device: 能源中心, gen_base: 32000, gen_amplitude: 2000, gen_period_s: 3600, gen_noise: 100}
+  - {code: WATER_CONSUME, name: 耗水量, unit: "m³/h", process_stage: 总体, device: 能源中心, gen_base: 580, gen_amplitude: 40, gen_period_s: 3600, gen_noise: 5}
+  - {code: STEAM_FLOW, name: 蒸汽流量, unit: "t/h", process_stage: 总体, device: 锅炉房, gen_base: 120, gen_amplitude: 10, gen_period_s: 1800, gen_noise: 1}
+  - {code: COAL_EQUIV, name: 标煤耗量, unit: "tce/h", process_stage: 总体, device: 能源中心, gen_base: 78, gen_amplitude: 5, gen_period_s: 3600, gen_noise: 0.5}
+  - {code: SCOPE1_CO2, name: 直接碳排放, unit: "tCO2/h", process_stage: 排放, device: 在线监测, gen_base: 215, gen_amplitude: 15, gen_period_s: 3600, gen_noise: 2}
+  - {code: SCOPE2_CO2, name: 间接碳排放, unit: "tCO2/h", process_stage: 排放, device: 在线监测, gen_base: 132, gen_amplitude: 9, gen_period_s: 3600, gen_noise: 1.5}
+  - {code: POWER_FACTOR, name: 功率因数, unit: "ratio", process_stage: 总体, device: 变电站, gen_base: 0.95, gen_amplitude: 0.02, gen_period_s: 1800, gen_noise: 0.005}

@@ -1,0 +1,22 @@
+# 有色行业 · 挥发窑低碳运行系统 预置数据源
+name: 挥发窑-A号线
+code: VOLATILE_KILN_A
+protocol: OPC_UA
+host: 10.20.1.11
+port: 4840
+industry: 有色
+collect_interval_ms: 5000
+description: 有色行业挥发窑低碳运行系统主数据源（Mock）
+points:
+  - {code: KILN_HEAD_TEMP, name: 窑头温度, unit: "℃", process_stage: 焙烧, device: 挥发窑A, gen_base: 1150, gen_amplitude: 40, gen_period_s: 3600, gen_noise: 3}
+  - {code: KILN_TAIL_TEMP, name: 窑尾温度, unit: "℃", process_stage: 焙烧, device: 挥发窑A, gen_base: 320, gen_amplitude: 15, gen_period_s: 3600, gen_noise: 2}
+  - {code: KILN_TAIL_PRESSURE, name: 窑尾压力, unit: "Pa", process_stage: 焙烧, device: 挥发窑A, gen_base: -120, gen_amplitude: 20, gen_period_s: 1800, gen_noise: 2}
+  - {code: COAL_FLOW, name: 煤气流量, unit: "m³/h", process_stage: 燃烧, device: 燃烧器A, gen_base: 5200, gen_amplitude: 400, gen_period_s: 3600, gen_noise: 30}
+  - {code: SEC_AIR_TEMP, name: 二次风温, unit: "℃", process_stage: 燃烧, device: 风机A, gen_base: 480, gen_amplitude: 25, gen_period_s: 3600, gen_noise: 3}
+  - {code: AIR_COAL_RATIO, name: 风量煤比, unit: "ratio", process_stage: 燃烧, device: 燃烧器A, gen_base: 1.35, gen_amplitude: 0.08, gen_period_s: 1800, gen_noise: 0.02}
+  - {code: CO2_INTENSITY, name: 碳排强度, unit: "kgCO2/t", process_stage: 排放, device: 在线监测, gen_base: 1850, gen_amplitude: 60, gen_period_s: 7200, gen_noise: 10}
+  - {code: O2_PCT, name: 烟气含氧量, unit: "%", process_stage: 排放, device: 在线监测, gen_base: 6.5, gen_amplitude: 1.2, gen_period_s: 1800, gen_noise: 0.2}
+  - {code: FEED_RATE, name: 进料量, unit: "t/h", process_stage: 焙烧, device: 给料机A, gen_base: 38, gen_amplitude: 2.5, gen_period_s: 3600, gen_noise: 0.3}
+  - {code: POWER_KW, name: 主电机功率, unit: "kW", process_stage: 焙烧, device: 主电机, gen_base: 680, gen_amplitude: 40, gen_period_s: 1800, gen_noise: 5}
+  - {code: DUST_EMISSION, name: 粉尘排放, unit: "mg/m³", process_stage: 排放, device: 除尘器, gen_base: 28, gen_amplitude: 6, gen_period_s: 3600, gen_noise: 1}
+  - {code: ZINC_RECOVERY, name: 锌回收率, unit: "%", process_stage: 出料, device: 冷却机, gen_base: 92.5, gen_amplitude: 1.5, gen_period_s: 7200, gen_noise: 0.3}

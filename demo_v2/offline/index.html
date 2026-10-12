@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>工业过程全流程低碳运行智能监测与协同调控平台</title>
+<link rel="stylesheet" href="css/style.css">
+<script src="js/lib/echarts.min.js"></script>
+<script src="js/lib/three.min.js"></script>
+</head>
+<body>
+
+<!-- Background Effects -->
+<div class="grid-bg"></div>
+<canvas id="particleCanvas"></canvas>
+<div class="scanline"></div>
+
+<!-- Main App -->
+<div class="app-container">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div class="header-left">
+      <div class="header-logo">♻</div>
+      <span class="header-title">工业过程全流程低碳运行智能监测与协同调控平台</span>
+    </div>
+    <div class="header-center">
+      <div class="nav-dot"></div><div class="nav-dot"></div><div class="nav-dot"></div><div class="nav-dot"></div><div class="nav-dot"></div>
+    </div>
+    <div class="header-right">
+      <div class="status-indicator">
+        <div class="status-dot"></div>
+        <span>系统运行中</span>
+      </div>
+      <span id="headerTime">--</span>
+      <span class="tag tag-green">v3.2.1</span>
+    </div>
+  </header>
+
+  <!-- Navigation -->
+  <nav class="nav-tabs">
+    <div class="nav-tab active" data-view="dashboard">
+      🏠 驾驶舱
+    </div>
+    <div class="nav-tab" data-view="scene-detail" style="display:none" id="tabSceneDetail">
+      📋 场景详情
+    </div>
+    <div class="nav-tab" data-view="config-dev">
+      ➕ 新增场景
+    </div>
+    <div class="nav-tab" data-view="cloud-edge">
+      ☁ 云边端资源协同
+    </div>
+  </nav>
+
+  <!-- Content -->
+  <main class="content-area">
+
+    <!-- ==================== DASHBOARD VIEW ==================== -->
+    <div class="view-panel active" id="view-dashboard">
+
+      <!-- Stat Cards -->
+      <div class="stat-row">
+        <div class="stat-card">
+          <div class="stat-card-icon blue">⎔</div>
+          <div class="stat-value" id="statScenes">6</div>
+          <div class="stat-label">运行场景总数</div>
+          <div class="stat-change up">▲ 覆盖3大行业</div>
+          <div class="stat-corner-decor"></div>
+          <div class="corner-decor tl"></div><div class="corner-decor br"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon green">♻</div>
+          <div class="stat-value" id="statReduction">23.8<span style="font-size:18px">%</span></div>
+          <div class="stat-label">综合碳减排率</div>
+          <div class="stat-change up">▲ 3.2% 较上月</div>
+          <div class="stat-corner-decor"></div>
+          <div class="corner-decor tl"></div><div class="corner-decor br"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon purple">◎</div>
+          <div class="stat-value" id="statModels">12</div>
+          <div class="stat-label">在线模型数</div>
+          <div class="stat-change up">● 全部运行正常</div>
+          <div class="stat-corner-decor"></div>
+          <div class="corner-decor tl"></div><div class="corner-decor br"></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-card-icon orange">⚡</div>
+          <div class="stat-value" id="statDevices">48</div>
+          <div class="stat-label">在线监测设备</div>
+          <div class="stat-change down">⚠ 3 个需关注</div>
+          <div class="stat-corner-decor"></div>
+          <div class="corner-decor tl"></div><div class="corner-decor br"></div>
+        </div>
+      </div>
+
+      <!-- ★★★ 行业分类场景展示 ★★★ -->
+      <div id="industrySceneShowcase"></div>
+
+      <!-- Overview Charts -->
+      <div class="dashboard-grid-equal" style="margin-top:16px;">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">各行业碳排放对比</div>
+            <div class="panel-badge">本月</div>
+          </div>
+          <div class="chart-container" id="chartIndustryBar"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">碳减排率分布</div>
+            <div class="panel-badge">实时</div>
+          </div>
+          <div class="chart-container" id="chartReductionGauge"></div>
+        </div>
+      </div>
+
+      <!-- Alerts -->
+      <div class="panel">
+        <div class="panel-header">
+          <div class="panel-title">实时告警信息</div>
+          <div class="panel-badge" style="background:rgba(255,59,92,0.1);color:var(--accent-danger);border-color:rgba(255,59,92,0.2);">3 条活跃</div>
+        </div>
+        <div id="alertList"></div>
+      </div>
+    </div>
+
+    <!-- ==================== SCENE DETAIL VIEW ==================== -->
+    <div class="view-panel" id="view-scene-detail">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+        <button class="btn btn-secondary btn-sm" onclick="switchView('dashboard')">← 返回驾驶舱</button>
+        <span style="color:var(--text-secondary);">|</span>
+        <span style="font-size:15px;font-weight:600;" id="sceneDetailTitle">场景详情</span>
+        <span class="tag tag-green" id="sceneDetailStatus">● 运行中</span>
+        <div style="flex:1;"></div>
+        <button class="btn btn-primary btn-sm" onclick="runAIAnalysis()" id="btnAIAnalyze">🤖 AI 一键分析</button>
+      </div>
+
+      <!-- Stats Row -->
+      <div class="stat-row" id="sceneDetailStats"></div>
+
+      <!-- ★★★ 3D Digital Twin + AI Analysis ★★★ -->
+      <div class="dashboard-grid">
+        <div class="panel" style="padding:0;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border-subtle);">
+            <div class="panel-title" style="border-bottom:none;margin-bottom:0;padding-bottom:0;">数字孪生模型</div>
+            <span class="tag tag-blue">3D 实时</span>
+          </div>
+          <div class="digital-twin-container" id="twinContainer">
+            <div class="twin-overlay" id="twinOverlay">⏳ 加载中...</div>
+            <svg class="twin-label-lines" id="twinLabelLines"></svg>
+            <div class="twin-labels-layer" id="twinLabels"></div>
+            <div class="twin-controls">
+              <span class="twin-hint">🖱 左拖旋转 · 右键拖移 · 滚轮缩放</span>
+              <button class="twin-btn" onclick="resetTwinView()" title="重置视角">⟳</button>
+              <button class="twin-btn" onclick="toggleTwinAutoRotate()" title="自动旋转">◎</button>
+            </div>
+            <div class="twin-legend">
+              <div class="twin-legend-item"><span class="twin-legend-dot hot"></span>高温区</div>
+              <div class="twin-legend-item"><span class="twin-legend-dot warm"></span>中温区</div>
+              <div class="twin-legend-item"><span class="twin-legend-dot normal"></span>进料区</div>
+              <div class="twin-legend-item"><span class="twin-legend-dot gas"></span>排放区</div>
+            </div>
+          </div>
+        </div>
+        <div class="ai-panel" id="aiPanel">
+          <div class="ai-panel-header">
+            <div class="ai-panel-title">
+              <div class="ai-icon">AI</div>
+              <span>大模型智能分析</span>
+            </div>
+            <span class="tag tag-purple" id="aiStatus">就绪</span>
+          </div>
+          <div class="ai-panel-body" id="aiPanelBody">
+            <div style="text-align:center;padding:40px;color:var(--text-dim);">
+              <div style="font-size:48px;margin-bottom:12px;">🤖</div>
+              <div style="font-size:14px;">点击上方 <span style="color:var(--accent-primary);">「AI 一键分析」</span> 按钮<br>获取当前场景智能诊断报告</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts & Equipment -->
+      <div class="dashboard-grid-equal" style="margin-top:16px;">
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">碳排放实时监测</div>
+            <span class="tag tag-blue">数字孪生</span>
+          </div>
+          <div class="chart-container" id="chartSceneRealtime"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-header">
+            <div class="panel-title">关键运行参数</div>
+            <span class="tag tag-green">雷达对比</span>
+          </div>
+          <div class="chart-container" id="chartParams"></div>
+        </div>
+      </div>
+
+      <!-- Equipment Table -->
+      <div class="panel" style="margin-top:16px;">
+        <div class="panel-header">
+          <div class="panel-title">设备运行状态</div>
+        </div>
+        <div style="max-height:240px;overflow-y:auto;">
+          <table class="data-table" id="equipmentTable">
+            <thead><tr><th>设备名称</th><th>类型</th><th>状态</th><th>效率</th><th>碳排放</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CONFIG DEV VIEW - 组态化开发 ==================== -->
+    <div class="view-panel" id="view-config-dev">
+      <!-- Step Indicator -->
+      <div class="wizard-steps" id="wizardSteps">
+        <div class="wiz-step active" data-step="1">
+          <div class="wiz-step-num">1</div>
+          <div class="wiz-step-label">组态化系统开发</div>
+        </div>
+        <div class="wiz-step-connector"></div>
+        <div class="wiz-step" data-step="2">
+          <div class="wiz-step-num">2</div>
+          <div class="wiz-step-label">云边端资源协同</div>
+        </div>
+        <div class="wiz-step-connector"></div>
+        <div class="wiz-step" data-step="3">
+          <div class="wiz-step-num">3</div>
+          <div class="wiz-step-label">模型自适应迁移</div>
+        </div>
+      </div>
+
+      <!-- ★ STEP 1: 组态化系统开发 ★ -->
+      <div class="wizard-panel active" id="wizPanel1">
+        <div class="composer-layout">
+          <!-- Left: Dual-tab panel — 模型库 + 组件库 -->
+          <div class="composer-sidebar">
+            <div class="panel" style="height:100%;display:flex;flex-direction:column;">
+              <div class="panel-header" style="display:flex;padding:0;">
+                <div class="composer-tab active" data-tab="model-lib" style="flex:1;text-align:center;padding:10px 0;cursor:pointer;font-size:12px;font-weight:600;border-bottom:2px solid var(--accent-primary);color:var(--accent-primary);">
+                  📦 模型库
+                </div>
+                <div class="composer-tab" data-tab="comp-lib" style="flex:1;text-align:center;padding:10px 0;cursor:pointer;font-size:12px;font-weight:600;border-bottom:2px solid transparent;color:var(--text-dim);">
+                  🧩 组件库
+                </div>
+              </div>
+              <!-- Model Library tab (4 research areas from original: 感知·建模·控制·优化) -->
+              <div class="composer-tab-panel active" id="tab-model-lib" style="flex:1;overflow-y:auto;padding:8px;">
+                <div style="margin-bottom:10px;">
+                  <div style="font-size:10px;color:var(--accent-primary);margin-bottom:5px;font-weight:600;">🔍 智能感知</div>
+                  <div class="composer-item" draggable="true" data-type="co2-sensing" data-icon="🛰" data-label="CO₂排放在线感知" data-model="true">🛰 CO₂排放在线感知</div>
+                  <div class="composer-item" draggable="true" data-type="energy-sensing" data-icon="📡" data-label="能效在线感知" data-model="true">📡 能效在线感知</div>
+                  <div class="composer-item" draggable="true" data-type="fault-detect" data-icon="🔎" data-label="故障在线检测" data-model="true">🔎 故障在线检测</div>
+                </div>
+                <div style="margin-bottom:10px;">
+                  <div style="font-size:10px;color:var(--accent-tertiary);margin-bottom:5px;font-weight:600;">🧠 智能建模</div>
+                  <div class="composer-item" draggable="true" data-type="co2-predict" data-icon="📉" data-label="CO₂排放预测模型" data-model="true">📉 CO₂排放预测模型</div>
+                  <div class="composer-item" draggable="true" data-type="quality-predict" data-icon="📊" data-label="质量预测模型" data-model="true">📊 质量预测模型</div>
+                  <div class="composer-item" draggable="true" data-type="health-mgmt" data-icon="💚" data-label="设备健康管理" data-model="true">💚 设备健康管理</div>
+                </div>
+                <div style="margin-bottom:10px;">
+                  <div style="font-size:10px;color:var(--accent-warning);margin-bottom:5px;font-weight:600;">⚙ 智能控制</div>
+                  <div class="composer-item" draggable="true" data-type="combustion-opt" data-icon="🔥" data-label="燃烧优化控制" data-model="true">🔥 燃烧优化控制</div>
+                  <div class="composer-item" draggable="true" data-type="mpc-ctrl" data-icon="🎛" data-label="MPC模型预测控制" data-model="true">🎛 MPC模型预测控制</div>
+                  <div class="composer-item" draggable="true" data-type="energy-opt" data-icon="⚡" data-label="能效优化控制" data-model="true">⚡ 能效优化控制</div>
+                </div>
+                <div style="margin-bottom:10px;">
+                  <div style="font-size:10px;color:var(--accent-purple);margin-bottom:5px;font-weight:600;">📈 智能优化</div>
+                  <div class="composer-item" draggable="true" data-type="carbon-track" data-icon="🎯" data-label="碳足迹追踪优化" data-model="true">🎯 碳足迹追踪优化</div>
+                  <div class="composer-item" draggable="true" data-type="multi-obj" data-icon="🔮" data-label="多目标优化" data-model="true">🔮 多目标优化</div>
+                  <div class="composer-item" draggable="true" data-type="twin-blast" data-icon="🏭" data-label="高炉数字孪生" data-model="true">🏭 高炉数字孪生</div>
+                  <div class="composer-item" draggable="true" data-type="twin-kiln" data-icon="⛏" data-label="回转窑数字孪生" data-model="true">⛏ 回转窑数字孪生</div>
+                </div>
+                <div style="font-size:10px;color:var(--text-dim);text-align:center;padding:8px;">模型库总计 156 个 | 已开放 13 个核心模型</div>
+              </div>
+              <!-- Component Library tab (matching original 5 categories × 13 types) -->
+              <div class="composer-tab-panel" id="tab-comp-lib" style="display:none;flex:1;overflow-y:auto;padding:0 8px;">
+                <div class="composer-category active" data-cat="data-collect">📡 数据采集</div>
+                <div class="composer-items" id="cat-data-collect">
+                  <div class="composer-item" draggable="true" data-type="sensor" data-icon="🌡" data-label="传感器">🌡 传感器</div>
+                  <div class="composer-item" draggable="true" data-type="edge-gateway" data-icon="📶" data-label="边缘网关">📶 边缘网关</div>
+                </div>
+                <div class="composer-category" data-cat="ai-model">🧠 智能模型</div>
+                <div class="composer-items" id="cat-ai-model" style="display:none;">
+                  <div class="composer-item" draggable="true" data-type="energy-model" data-icon="⚡" data-label="能耗预测">⚡ 能耗预测</div>
+                  <div class="composer-item" draggable="true" data-type="quality-model" data-icon="📊" data-label="质量预测">📊 质量预测</div>
+                  <div class="composer-item" draggable="true" data-type="health-model" data-icon="💚" data-label="设备健康">💚 设备健康</div>
+                  <div class="composer-item" draggable="true" data-type="mpc-model" data-icon="🎛" data-label="MPC控制">🎛 MPC控制</div>
+                </div>
+                <div class="composer-category" data-cat="visual">📈 可视化</div>
+                <div class="composer-items" id="cat-visual" style="display:none;">
+                  <div class="composer-item" draggable="true" data-type="trend-chart" data-icon="📉" data-label="趋势图">📉 趋势图</div>
+                  <div class="composer-item" draggable="true" data-type="monitor-panel" data-icon="🖥" data-label="监控面板">🖥 监控面板</div>
+                  <div class="composer-item" draggable="true" data-type="alert-board" data-icon="⚠" data-label="告警看板">⚠ 告警看板</div>
+                </div>
+                <div class="composer-category" data-cat="storage">💾 数据存储</div>
+                <div class="composer-items" id="cat-storage" style="display:none;">
+                  <div class="composer-item" draggable="true" data-type="tsdb" data-icon="🗄" data-label="时序数据库">🗄 时序数据库</div>
+                  <div class="composer-item" draggable="true" data-type="rdb" data-icon="📚" data-label="关系型数据库">📚 关系型数据库</div>
+                </div>
+                <div class="composer-category" data-cat="api">🔌 接口服务</div>
+                <div class="composer-items" id="cat-api" style="display:none;">
+                  <div class="composer-item" draggable="true" data-type="rest-api" data-icon="🌐" data-label="REST API">🌐 REST API</div>
+                  <div class="composer-item" draggable="true" data-type="websocket" data-icon="🔗" data-label="WebSocket">🔗 WebSocket</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Center: Development Canvas -->
+          <div class="composer-main">
+            <div class="panel" style="height:100%;display:flex;flex-direction:column;">
+              <div class="panel-header">
+                <div class="panel-title">组态化开发画布</div>
+                <div style="display:flex;gap:8px;align-items:center;">
+                  <span style="font-size:10px;color:var(--text-dim);">场景名称:</span>
+                  <input id="wizSceneName" style="width:140px;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:4px 8px;color:var(--text-primary);font-size:12px;" placeholder="输入场景名称">
+                  <select id="wizIndustrySelect" style="width:100px;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:4px;padding:4px 6px;color:var(--text-primary);font-size:11px;">
+                    <option value="">选择行业</option>
+                    <option value="钢铁行业">🏭 钢铁</option>
+                    <option value="有色行业">⚡ 有色</option>
+                    <option value="石油化工">⚗ 石化</option>
+                  </select>
+                  <button class="btn btn-sm btn-secondary" onclick="clearCanvas()" title="清空画布">清空</button>
+                  <button class="btn btn-sm btn-secondary" onclick="exportCanvasConfig()" title="导出配置">导出</button>
+                  <button class="btn btn-sm btn-secondary" onclick="importCanvasConfig()" title="导入配置">导入</button>
+                </div>
+              </div>
+              <div class="composer-canvas" id="composerCanvas"
+                   ondragover="event.preventDefault();"
+                   ondrop="handleDrop(event)">
+                <div class="composer-grid"></div>
+                <svg id="connectionSvg" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:0;"></svg>
+                <div id="canvasNodes"></div>
+              </div>
+              <div style="padding:8px 16px;display:flex;gap:16px;font-size:11px;color:var(--text-dim);border-top:1px solid var(--border-subtle);flex-wrap:wrap;">
+                <span>💡 拖拽模型库/组件库节点到画布</span>
+                <span>|</span>
+                <span>🔗 点击节点端口连线</span>
+                <span>|</span>
+                <span>🗑 右键删除节点</span>
+                <span>|</span>
+                <span style="color:var(--accent-warning);">⚡ 选中模型节点→右侧配置数据迁移参数</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right: Model Config + Cloud-Edge Port -->
+          <div class="composer-props" id="composerProps">
+            <div class="panel" style="height:100%;display:flex;flex-direction:column;">
+              <div class="panel-header"><div class="panel-title">⚙ 模型数据迁移配置</div></div>
+              <div style="flex:1;overflow-y:auto;padding:12px;">
+                <div style="font-size:11px;color:var(--text-dim);margin-bottom:12px;">
+                  选中画布上的模型节点，配置基于数据的自定义迁移参数
+                </div>
+                <div class="migration-config-form" id="migrationConfigForm">
+                  <div class="form-group" style="margin-bottom:10px;">
+                    <label class="form-label">数据源绑定</label>
+                    <select class="form-input" id="migDataSource" style="font-size:11px;padding:6px 10px;">
+                      <option value="">选择数据源</option>
+                      <option value="rtdb">实时数据库 (RTDB)</option>
+                      <option value="opc">OPC UA 服务器</option>
+                      <option value="mqtt">MQTT 数据流</option>
+                      <option value="hist">历史数据库</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px;">
+                    <label class="form-label">训练数据集</label>
+                    <select class="form-input" id="migDataset" style="font-size:11px;padding:6px 10px;">
+                      <option value="">选择数据集</option>
+                      <option value="hist-6m">历史运行数据 (6个月)</option>
+                      <option value="sim-steel">仿真模拟数据 (钢铁)</option>
+                      <option value="sim-nonferrous">仿真模拟数据 (有色)</option>
+                      <option value="edge-collect">边缘端采集数据</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px;">
+                    <label class="form-label">迁移策略</label>
+                    <select class="form-input" id="migStrategy" style="font-size:11px;padding:6px 10px;">
+                      <option value="">选择策略</option>
+                      <option value="finetune">微调 (Fine-tuning)</option>
+                      <option value="transfer">迁移学习 (Transfer)</option>
+                      <option value="retrain">增量重训练</option>
+                      <option value="adapt">领域自适应</option>
+                    </select>
+                  </div>
+                  <div class="form-group" style="margin-bottom:10px;">
+                    <label class="form-label">目标精度阈值</label>
+                    <input class="form-input" id="migThreshold" type="number" step="0.01" min="0.5" max="1" value="0.95" style="font-size:11px;padding:6px 10px;">
+                  </div>
+                  <button class="btn btn-sm btn-primary" onclick="applyModelMigration()" style="width:100%;margin-top:8px;">
+                    ⚡ 应用数据迁移配置
+                  </button>
+                </div>
+
+                <!-- Cloud-Edge Port -->
+                <div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--border-subtle);">
+                  <div style="font-size:11px;color:var(--text-dim);margin-bottom:8px;">🔌 云边协同端口</div>
+                  <div class="ce-port-indicator" id="cePortIndicator">
+                    <div class="ce-port-dot" id="cePortDot"></div>
+                    <span style="font-size:11px;color:var(--text-dim);" id="cePortStatus">未连接</span>
+                  </div>
+                  <button class="btn btn-sm btn-secondary" onclick="goToWizStep(2)" style="width:100%;margin-top:8px;">
+                    🔗 配置云边端资源协同 →
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:flex-end;padding:8px 0;">
+          <button class="btn btn-primary" onclick="goToWizStep(2)">下一步 · 云边端资源协同 →</button>
+        </div>
+      </div>
+
+      <!-- ★ STEP 2: 云边端资源协同 ★ -->
+      <div class="wizard-panel" id="wizPanel2">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <!-- Cloud-Edge Topology with Add Controls -->
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">☁ 云边端协同拓扑</div>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-sm btn-secondary" onclick="showAddTerminalDialog()" style="font-size:11px;">+ 监测终端</button>
+                <button class="btn btn-sm btn-secondary" onclick="showAddEdgeDialog()" style="font-size:11px;">+ 边缘节点</button>
+              </div>
+            </div>
+            <div style="position:relative;height:320px;" id="ceTopoContainer">
+              <div class="ce-node ce-cloud" style="top:20px;left:50%;transform:translateX(-50%);">
+                <div class="ce-node-icon">☁</div>
+                <div class="ce-node-label">云端数据中心</div>
+                <div class="ce-node-spec">GPU集群 · 模型训练 · 模型库156个</div>
+              </div>
+              <div class="ce-node ce-edge" style="top:120px;left:8%;">
+                <div class="ce-node-icon">🔷</div>
+                <div class="ce-node-label">边缘节点 A</div>
+                <div class="ce-node-spec">西南区域 · 推理服务器</div>
+                <span class="tag tag-green" style="font-size:9px;margin-top:2px;">● 在线</span>
+              </div>
+              <div class="ce-node ce-edge" style="top:120px;left:42%;">
+                <div class="ce-node-icon">🔷</div>
+                <div class="ce-node-label">边缘节点 B</div>
+                <div class="ce-node-spec">华东区域 · 推理服务器</div>
+                <span class="tag tag-green" style="font-size:9px;margin-top:2px;">● 在线</span>
+              </div>
+              <div class="ce-node ce-edge" id="ceEdgeDynamic" style="top:120px;left:72%;">
+                <div class="ce-node-icon">🔷</div>
+                <div class="ce-node-label">边缘节点 C</div>
+                <div class="ce-node-spec">西北区域 · 推理服务器</div>
+                <span class="tag tag-orange" style="font-size:9px;margin-top:2px;">⚠ 警告</span>
+              </div>
+              <!-- Monitoring terminals -->
+              <div class="ce-node ce-device" id="ceTerm1" style="top:230px;left:3%;">
+                <div class="ce-node-icon">📡</div>
+                <div class="ce-node-label">碳排监测终端 #1</div>
+                <div class="ce-node-spec">CO₂·温度·流量</div>
+              </div>
+              <div class="ce-node ce-device" id="ceTerm2" style="top:230px;left:28%;">
+                <div class="ce-node-icon">📊</div>
+                <div class="ce-node-label">碳排监测终端 #2</div>
+                <div class="ce-node-spec">CO₂·压力·流速</div>
+              </div>
+              <div class="ce-node ce-device" id="ceTerm3" style="top:230px;left:53%;">
+                <div class="ce-node-icon">📟</div>
+                <div class="ce-node-label">碳排监测终端 #3</div>
+                <div class="ce-node-spec">CO₂·温度·能效</div>
+              </div>
+              <canvas id="ceTopoCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;"></canvas>
+            </div>
+          </div>
+
+          <!-- Terminal & Edge Management -->
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">📋 终端与节点管理</div></div>
+            <div style="padding:12px;overflow-y:auto;max-height:320px;">
+              <div style="font-size:11px;color:var(--accent-primary);margin-bottom:8px;font-weight:600;">碳排监测终端</div>
+              <div id="terminalList">
+                <div class="ce-resource-card" style="margin-bottom:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:12px;">📡 碳排监测终端 #1</span>
+                    <span class="tag tag-green">在线</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">西南区域 · CO₂/温度/流量 · 采样率1kHz</div>
+                </div>
+                <div class="ce-resource-card" style="margin-bottom:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:12px;">📊 碳排监测终端 #2</span>
+                    <span class="tag tag-green">在线</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">华东区域 · CO₂/压力/流速 · 采样率500Hz</div>
+                </div>
+                <div class="ce-resource-card" style="margin-bottom:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:12px;">📟 碳排监测终端 #3</span>
+                    <span class="tag tag-orange">警告</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">西北区域 · CO₂/温度/能效 · 采样率200Hz</div>
+                </div>
+              </div>
+              <div style="font-size:11px;color:var(--accent-primary);margin:12px 0 8px;font-weight:600;">边缘计算节点</div>
+              <div id="edgeNodeList">
+                <div class="ce-resource-card" style="margin-bottom:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:12px;">🔷 边缘节点 A</span>
+                    <span class="tag tag-blue">NPU: MLU370</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">西南区域 · 推理延迟&lt;10ms · 功耗75W</div>
+                </div>
+                <div class="ce-resource-card" style="margin-bottom:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:12px;">🔷 边缘节点 B</span>
+                    <span class="tag tag-blue">NPU: MLU370</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">华东区域 · 推理延迟&lt;8ms · 功耗68W</div>
+                </div>
+                <div class="ce-resource-card" style="margin-bottom:6px;">
+                  <div style="display:flex;justify-content:space-between;align-items:center;">
+                    <span style="font-size:12px;">🔷 边缘节点 C</span>
+                    <span class="tag tag-orange">资源紧张</span>
+                  </div>
+                  <div style="font-size:10px;color:var(--text-dim);margin-top:3px;">西北区域 · 推理延迟&lt;15ms · 功耗82W</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Sync config -->
+        <div class="panel" style="margin-top:16px;">
+          <div class="panel-header"><div class="panel-title">🔄 数据同步策略</div></div>
+          <div style="padding:16px;display:flex;gap:24px;flex-wrap:wrap;">
+            <div class="form-group" style="flex:1;min-width:180px;">
+              <label class="form-label">同步模式</label>
+              <select class="form-input" id="ceSyncMode">
+                <option value="realtime">实时同步 (WebSocket)</option>
+                <option value="batch">批量同步 (每5分钟)</option>
+                <option value="event">事件驱动同步</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:180px;">
+              <label class="form-label">模型下发策略</label>
+              <select class="form-input" id="ceDeployStrategy">
+                <option value="auto">自动下发 (精度触发)</option>
+                <option value="manual">手动审批下发</option>
+                <option value="schedule">定时批量下发</option>
+              </select>
+            </div>
+            <div class="form-group" style="flex:1;min-width:180px;">
+              <label class="form-label">边端推理优先级</label>
+              <select class="form-input" id="cePriority">
+                <option value="latency">低延迟优先</option>
+                <option value="accuracy">精度优先</option>
+                <option value="energy">能耗优先</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:16px 0;">
+          <button class="btn btn-secondary" onclick="goToWizStep(1)">← 上一步</button>
+          <button class="btn btn-primary" onclick="goToWizStep(3)">下一步 · 模型自适应迁移 →</button>
+        </div>
+      </div>
+
+      <!-- ★ STEP 3: 模型自适应迁移 ★ -->
+      <div class="wizard-panel" id="wizPanel3">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <!-- Source Environment -->
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">📤 源环境 (云端训练)</div></div>
+            <div style="padding:16px;">
+              <div class="migration-env-card source">
+                <div style="font-size:20px;margin-bottom:8px;">☁</div>
+                <div style="font-weight:600;color:var(--text-primary);">GPU 训练集群</div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">
+                  PyTorch 2.x · CUDA 12 · 数据集: 全量历史数据
+                </div>
+                <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">
+                  <span class="tag tag-blue">精度 98.7%</span>
+                  <span class="tag tag-green">模型 v3.2</span>
+                  <span class="tag tag-purple">参数量 127M</span>
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <label class="form-label">导出格式</label>
+                <select class="form-input" id="migExportFormat">
+                  <option value="onnx">ONNX (通用格式)</option>
+                  <option value="torchscript">TorchScript</option>
+                  <option value="tensorrt">TensorRT (GPU优化)</option>
+                  <option value="openvino">OpenVINO (Intel优化)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Target Environment -->
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">📥 目标环境 (边缘部署)</div></div>
+            <div style="padding:16px;">
+              <div class="migration-env-card target">
+                <div style="font-size:20px;margin-bottom:8px;">🔷</div>
+                <div style="font-weight:600;color:var(--text-primary);">边缘推理节点</div>
+                <div style="font-size:11px;color:var(--text-dim);margin-top:4px;">
+                  寒武纪 MLU370 · 内存: 16GB · 功耗限制: 75W
+                </div>
+                <div style="margin-top:8px;display:flex;flex-wrap:wrap;gap:4px;">
+                  <span class="tag tag-orange">INT8 量化</span>
+                  <span class="tag tag-blue">精度目标 ≥95%</span>
+                  <span class="tag tag-green">延迟 &lt;5ms</span>
+                </div>
+              </div>
+              <div style="margin-top:12px;">
+                <label class="form-label">适配优化</label>
+                <select class="form-input" id="migAdaptOpt">
+                  <option value="quantize">量化压缩 (INT8)</option>
+                  <option value="prune">模型剪枝 (结构化)</option>
+                  <option value="distill">知识蒸馏</option>
+                  <option value="nas">架构搜索 (NAS)</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Migration Progress -->
+        <div class="panel" style="margin-top:16px;">
+          <div class="panel-header"><div class="panel-title">📊 迁移过程监控</div></div>
+          <div style="padding:16px;">
+            <div class="migration-progress" style="display:flex;gap:8px;align-items:center;margin-bottom:16px;">
+              <div style="flex:1;">
+                <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px;">
+                  <span style="color:var(--text-secondary);">模型转换中...</span>
+                  <span style="color:var(--accent-primary);">76%</span>
+                </div>
+                <div style="height:6px;background:var(--bg-primary);border-radius:3px;overflow:hidden;">
+                  <div style="width:76%;height:100%;background:linear-gradient(90deg,var(--accent-primary),var(--accent-tertiary));border-radius:3px;transition:width 0.5s;"></div>
+                </div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;font-size:12px;">
+              <div style="text-align:center;padding:12px;background:var(--bg-primary);border-radius:8px;">
+                <div style="color:var(--accent-primary);font-size:18px;">✓</div>
+                <div style="color:var(--text-secondary);">格式转换</div>
+                <div style="color:var(--text-dim);font-size:10px;">PyTorch→ONNX</div>
+              </div>
+              <div style="text-align:center;padding:12px;background:var(--bg-primary);border-radius:8px;">
+                <div style="color:var(--accent-primary);font-size:18px;">✓</div>
+                <div style="color:var(--text-secondary);">精度校验</div>
+                <div style="color:var(--text-dim);font-size:10px;">偏差 &lt;1.2%</div>
+              </div>
+              <div style="text-align:center;padding:12px;background:var(--bg-primary);border-radius:8px;border:1px solid var(--accent-primary);">
+                <div style="color:var(--accent-warning);font-size:18px;">⟳</div>
+                <div style="color:var(--accent-primary);">量化压缩</div>
+                <div style="color:var(--text-dim);font-size:10px;">FP32→INT8</div>
+              </div>
+              <div style="text-align:center;padding:12px;background:var(--bg-primary);border-radius:8px;">
+                <div style="color:var(--text-dim);font-size:18px;">○</div>
+                <div style="color:var(--text-dim);">边端部署</div>
+                <div style="color:var(--text-dim);font-size:10px;">待执行</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;padding:12px;background:rgba(0,212,255,0.05);border:1px solid var(--border-subtle);border-radius:8px;font-size:11px;color:var(--text-secondary);">
+              <strong style="color:var(--accent-primary);">迁移摘要：</strong>
+              源模型 CO₂排放预测 v3.2 (PyTorch, 127M参数) →
+              目标设备 边缘节点A (寒武纪MLU370) ·
+              策略: INT8量化 + 结构化剪枝 ·
+              预估精度损失 &lt;1.5% · 推理速度提升 4.2×
+            </div>
+          </div>
+        </div>
+        <div style="display:flex;justify-content:space-between;padding:16px 0;" id="migActionBar">
+          <button class="btn btn-secondary" onclick="goToWizStep(2)">← 上一步</button>
+          <button class="btn btn-primary" onclick="executeMigration()">🚀 执行模型自适应迁移</button>
+        </div>
+        <!-- Deployment completion (shown after migration) -->
+        <div id="deployCompleteSection" style="display:none;">
+          <div class="panel" style="margin-top:16px;border-color:var(--accent-tertiary);">
+            <div class="panel-header"><div class="panel-title">✅ 迁移完成 — 部署确认</div></div>
+            <div style="padding:24px;text-align:center;">
+              <div style="font-size:48px;margin-bottom:12px;">✅</div>
+              <div style="font-size:16px;color:var(--accent-tertiary);font-weight:600;margin-bottom:8px;">模型自适应迁移成功！</div>
+              <div style="font-size:12px;color:var(--text-dim);margin-bottom:20px;" id="deployResultText"></div>
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;max-width:500px;margin:0 auto 20px;">
+                <div style="padding:12px;background:var(--bg-primary);border-radius:8px;">
+                  <div style="color:var(--accent-tertiary);font-size:20px;">97.3%</div>
+                  <div style="font-size:10px;color:var(--text-dim);">迁移后精度</div>
+                </div>
+                <div style="padding:12px;background:var(--bg-primary);border-radius:8px;">
+                  <div style="color:var(--accent-primary);font-size:20px;">4.2×</div>
+                  <div style="font-size:10px;color:var(--text-dim);">推理加速</div>
+                </div>
+                <div style="padding:12px;background:var(--bg-primary);border-radius:8px;">
+                  <div style="color:var(--accent-tertiary);font-size:20px;">↓68%</div>
+                  <div style="font-size:10px;color:var(--text-dim);">功耗降低</div>
+                </div>
+              </div>
+              <button class="btn btn-primary" onclick="completeDeployment()" style="padding:12px 48px;font-size:15px;">
+                🎯 完成部署
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Terminal Dialog -->
+      <div class="modal-overlay" id="dlgTerminal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
+        <div class="panel" style="width:420px;max-height:80vh;overflow-y:auto;">
+          <div class="panel-header"><div class="panel-title">📡 添加碳排监测终端</div></div>
+          <div style="padding:16px;">
+            <div class="form-group" style="margin-bottom:10px;"><label class="form-label">终端名称</label><input class="form-input" id="termName" placeholder="例如：CO₂监测终端 #4"></div>
+            <div class="form-group" style="margin-bottom:10px;"><label class="form-label">终端类型</label><select class="form-input" id="termType"><option value="co2">CO₂监测</option><option value="temp">温度监测</option><option value="flow">流量监测</option><option value="multi">多参数综合</option></select></div>
+            <div class="form-group" style="margin-bottom:10px;"><label class="form-label">部署位置</label><select class="form-input" id="termLocation"><option value="华北">华北区域</option><option value="华东">华东区域</option><option value="华南">华南区域</option><option value="西南">西南区域</option><option value="西北">西北区域</option></select></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+              <button class="btn btn-secondary" onclick="closeDialog('dlgTerminal')">取消</button>
+              <button class="btn btn-primary" onclick="addTerminal()">确认添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Add Edge Node Dialog -->
+      <div class="modal-overlay" id="dlgEdge" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);z-index:1000;align-items:center;justify-content:center;">
+        <div class="panel" style="width:420px;">
+          <div class="panel-header"><div class="panel-title">🔷 添加边缘计算节点</div></div>
+          <div style="padding:16px;">
+            <div class="form-group" style="margin-bottom:10px;"><label class="form-label">节点名称</label><input class="form-input" id="edgeName" placeholder="例如：边缘节点 D"></div>
+            <div class="form-group" style="margin-bottom:10px;"><label class="form-label">部署区域</label><select class="form-input" id="edgeLocation"><option value="华北">华北区域</option><option value="华东">华东区域</option><option value="华南">华南区域</option><option value="西南">西南区域</option><option value="西北">西北区域</option></select></div>
+            <div class="form-group" style="margin-bottom:10px;"><label class="form-label">硬件配置</label><select class="form-input" id="edgeHardware"><option value="mlu370">寒武纪 MLU370</option><option value="jetson">NVIDIA Jetson Orin</option><option value="atlas">华为 Atlas 200</option><option value="k230">算能 K230</option></select></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;">
+              <button class="btn btn-secondary" onclick="closeDialog('dlgEdge')">取消</button>
+              <button class="btn btn-primary" onclick="addEdgeNode()">确认添加</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ==================== CLOUD-EDGE VIEW ==================== -->
+    <div class="view-panel" id="view-cloud-edge">
+      <!-- Topology -->
+      <div class="panel" style="margin-bottom:16px;min-height:340px;position:relative;overflow:hidden;">
+        <div class="panel-header"><div class="panel-title">云边端协同架构拓扑</div></div>
+        <div style="position:relative;height:290px;" id="topoContainer">
+          <div class="topo-node cloud" style="top:20px;left:50%;transform:translateX(-50%);">☁ 云端数据中心</div>
+          <div class="topo-node edge" style="top:105px;left:8%;">🖥 边缘节点 A<br><small style="color:var(--text-secondary);">西南区域</small></div>
+          <div class="topo-node edge" style="top:105px;left:38%;">🖥 边缘节点 B<br><small style="color:var(--text-secondary);">华东区域</small></div>
+          <div class="topo-node edge" style="top:105px;left:68%;">🖥 边缘节点 C<br><small style="color:var(--text-secondary);">西北区域</small></div>
+          <div class="topo-node device" style="top:200px;left:2%;">📡 传感器组 A</div>
+          <div class="topo-node device" style="top:200px;left:22%;">📡 传感器组 B</div>
+          <div class="topo-node device" style="top:200px;left:42%;">📡 传感器组 C</div>
+          <div class="topo-node device" style="top:200px;left:62%;">📡 传感器组 D</div>
+          <div class="topo-node device" style="top:200px;left:82%;">📡 传感器组 E</div>
+        </div>
+        <canvas id="topoCanvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;z-index:1;"></canvas>
+      </div>
+
+      <!-- ★ 3 Sub-tabs: 模型库管理 | 碳排监测仪表 | 现场实施数据 ★ -->
+      <div class="ce-sub-nav" id="ceSubNav">
+        <div class="ce-sub-tab active" data-ce-tab="ce-models" onclick="switchCeTab('ce-models')">📦 模型库管理</div>
+        <div class="ce-sub-tab" data-ce-tab="ce-monitor" onclick="switchCeTab('ce-monitor')">📡 碳排监测仪表</div>
+        <div class="ce-sub-tab" data-ce-tab="ce-field" onclick="switchCeTab('ce-field')">📊 现场实施数据</div>
+      </div>
+
+      <!-- ★ TAB 1: 模型库管理 ★ -->
+      <div class="ce-sub-panel active" id="ceModels">
+        <!-- Model overview/detail sub-tabs -->
+        <div class="model-sub-nav" id="ceModelSubNav">
+          <div class="model-sub-tab active" data-model-view="ce-overview" onclick="switchCeModelSubView('ce-overview')">📊 模型概览</div>
+          <div class="model-sub-tab" data-model-view="ce-detail" onclick="switchCeModelSubView('ce-detail')">📋 模型详情</div>
+        </div>
+
+        <!-- Overview -->
+        <div class="model-sub-panel active" id="modelCeOverview">
+          <div class="stat-row" id="modelCeOverviewStats"></div>
+          <div class="dashboard-grid-equal" style="margin-top:14px;" id="modelCeDirections"></div>
+          <div class="panel" style="margin-top:14px;">
+            <div class="panel-header"><div class="panel-title">最近更新</div></div>
+            <div id="modelCeRecentUpdates"></div>
+          </div>
+        </div>
+
+        <!-- Detail -->
+        <div class="model-sub-panel" id="modelCeDetail">
+          <div class="stat-row" id="modelCeDetailStats"></div>
+          <div class="model-direction-filter" id="modelCeDirFilter"></div>
+          <div style="display:flex;gap:12px;margin-bottom:14px;align-items:center;">
+            <div style="flex:1;">
+              <input id="modelCeSearch" style="width:100%;background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:6px;padding:8px 12px;color:var(--text-primary);font-size:13px;" placeholder="搜索模型..." oninput="renderCeModelGrid()">
+            </div>
+            <select id="modelCeCategoryFilter" style="background:var(--bg-primary);border:1px solid var(--border-subtle);border-radius:6px;padding:8px 12px;color:var(--text-primary);font-size:13px;" onchange="renderCeModelGrid()">
+              <option value="all">全部分类</option>
+              <option value="钢铁冶炼">钢铁冶炼</option>
+              <option value="有色冶金">有色冶金</option>
+              <option value="石化">石化</option>
+              <option value="通用">通用</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:14px;">
+            <div style="flex:1;" id="modelCeGrid"></div>
+            <div style="width:280px;flex-shrink:0;">
+              <div class="panel" style="margin-bottom:12px;">
+                <div class="panel-header"><div class="panel-title">研究方向</div></div>
+                <div id="modelCeDirDetail" style="padding:12px;font-size:12px;color:var(--text-dim);">请选择研究方向查看详情</div>
+              </div>
+              <div class="panel" style="margin-bottom:12px;">
+                <div class="panel-header"><div class="panel-title">快速操作</div></div>
+                <div style="padding:12px;display:flex;flex-direction:column;gap:8px;">
+                  <button class="btn btn-primary btn-sm" style="width:100%;">📤 上传新模型</button>
+                  <button class="btn btn-secondary btn-sm" style="width:100%;">🔗 模型组合配置</button>
+                  <button class="btn btn-secondary btn-sm" style="width:100%;">🧠 知识图谱更新</button>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="panel-header"><div class="panel-title">模型知识图谱</div></div>
+                <div style="position:relative;height:220px;" id="ceKgContainer">
+                  <canvas id="ceKgCanvas" style="width:100%;height:100%;"></canvas>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ★ TAB 2: 碳排监测仪表 ★ -->
+      <div class="ce-sub-panel" id="ceMonitor">
+        <div class="dashboard-grid-equal" style="margin-bottom:16px;">
+          <div class="panel">
+            <div class="panel-header">
+              <div class="panel-title">监测仪表列表</div>
+              <span class="panel-badge" id="monitorCount">48 台在线</span>
+            </div>
+            <div style="max-height:400px;overflow-y:auto;">
+              <table class="data-table" id="monitorTable">
+                <thead><tr><th>仪表编号</th><th>监测点位</th><th>读数</th><th>状态</th></tr></thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel">
+            <div class="panel-header"><div class="panel-title">仪表地理分布</div></div>
+            <div class="chart-container" id="chartMonitorMap"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ★ TAB 3: 现场实施数据 ★ -->
+      <div class="ce-sub-panel" id="ceField">
+        <!-- Level 1: Field Site List -->
+        <div id="fieldSiteList">
+          <div class="stat-row" id="fieldOverviewStats"></div>
+          <div class="panel" style="margin-top:14px;">
+            <div class="panel-header"><div class="panel-title">📍 监测现场列表</div><span class="tag tag-green" id="fieldCountLabel">6 个在线</span></div>
+            <div id="fieldSiteGrid" style="padding:12px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px;"></div>
+          </div>
+        </div>
+        <!-- Level 2: Field Site Detail -->
+        <div id="fieldSiteDetail" style="display:none;">
+          <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;">
+            <button class="btn btn-secondary btn-sm" onclick="backToFieldList()">← 返回现场列表</button>
+            <span style="font-size:15px;font-weight:600;" id="fieldDetailTitle">现场详情</span>
+            <span class="tag tag-green" id="fieldDetailStatus">● 在线</span>
+          </div>
+          <div class="stat-row" id="fieldDetailStats"></div>
+          <div class="dashboard-grid-equal" style="margin-top:14px;">
+            <div class="panel"><div class="panel-header"><div class="panel-title">📈 CO₂排放趋势</div></div><div class="chart-container" id="chartFieldCo2"></div></div>
+            <div class="panel"><div class="panel-header"><div class="panel-title">🌡 关键参数监测</div></div><div class="chart-container" id="chartFieldParams"></div></div>
+          </div>
+          <div class="dashboard-grid-3" style="margin-top:14px;">
+            <div class="panel"><div class="panel-header"><div class="panel-title">📡 传感器状态</div></div><div id="fieldSensorTable" style="max-height:240px;overflow-y:auto;"></div></div>
+            <div class="panel"><div class="panel-header"><div class="panel-title">⚡ 能耗统计</div></div><div class="chart-container" id="chartFieldEnergy"></div></div>
+            <div class="panel"><div class="panel-header"><div class="panel-title">📊 数据采集记录</div></div><div id="fieldDataSummary" style="padding:8px 12px;font-size:11px;color:var(--text-secondary);"></div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- Modal -->
+<div class="modal-overlay" id="modalOverlay" style="display:none;">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script src="js/app.js"></script>
+</body>
+</html>

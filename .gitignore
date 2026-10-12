@@ -1,0 +1,19 @@
+# Python
+backend/.venv/
+backend/__pycache__/
+**/__pycache__/
+backend/uploads/
+*.pyc
+
+# Database (regenerable via seed / import scripts)
+backend/carbonops.db
+backend/*.db
+
+# Node / Next.js
+frontend/node_modules/
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+
+# Misc
+*.log
+.trae/

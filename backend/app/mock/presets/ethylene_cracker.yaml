@@ -1,0 +1,20 @@
+# 石化行业 · 乙烯裂解炉低碳运行系统 预置数据源
+name: 乙烯裂解炉-B号炉
+code: ETHYLENE_CRACKER_B
+protocol: MODBUS
+host: 10.30.2.21
+port: 502
+industry: 石化
+collect_interval_ms: 5000
+description: 石化行业乙烯裂解炉低碳运行系统主数据源（Mock）
+points:
+  - {code: OUTLET_TEMP, name: 裂解炉出口温度, unit: "℃", process_stage: 裂解, device: 裂解炉B, gen_base: 845, gen_amplitude: 8, gen_period_s: 3600, gen_noise: 1.5}
+  - {code: TUBE_SKIN_TEMP, name: 炉管表面温度, unit: "℃", process_stage: 裂解, device: 炉管B, gen_base: 1020, gen_amplitude: 15, gen_period_s: 3600, gen_noise: 2}
+  - {code: FEED_NAPHTHA, name: 进料石脑油量, unit: "t/h", process_stage: 进料, device: 进料泵B, gen_base: 65, gen_amplitude: 3, gen_period_s: 3600, gen_noise: 0.5}
+  - {code: FUEL_GAS_FLOW, name: 燃料气流量, unit: "Nm³/h", process_stage: 燃烧, device: 烧嘴B, gen_base: 4200, gen_amplitude: 250, gen_period_s: 3600, gen_noise: 20}
+  - {code: STEAM_DILUTION, name: 稀释蒸汽比, unit: "ratio", process_stage: 裂解, device: 裂解炉B, gen_base: 0.5, gen_amplitude: 0.03, gen_period_s: 1800, gen_noise: 0.01}
+  - {code: CRACK_DEPTH, name: 裂解深度, unit: "PIONA", process_stage: 裂解, device: 在线分析仪, gen_base: 1.85, gen_amplitude: 0.12, gen_period_s: 7200, gen_noise: 0.02}
+  - {code: COKING_RATE, name: 结焦速率, unit: "mg/h", process_stage: 运行, device: 炉管B, gen_base: 12, gen_amplitude: 3, gen_period_s: 86400, gen_noise: 0.5}
+  - {code: ETHYLENE_YIELD, name: 乙烯收率, unit: "%", process_stage: 出料, device: 分馏塔, gen_base: 31.5, gen_amplitude: 1.2, gen_period_s: 7200, gen_noise: 0.2}
+  - {code: FLUE_GAS_CO2, name: 烟气CO2, unit: "%", process_stage: 排放, device: 在线监测, gen_base: 9.8, gen_amplitude: 0.6, gen_period_s: 3600, gen_noise: 0.1}
+  - {code: RUN_DAYS, name: 运行周期, unit: "day", process_stage: 运行, device: 裂解炉B, gen_base: 45, gen_amplitude: 10, gen_period_s: 86400, gen_noise: 0.1}

@@ -1,0 +1,32 @@
+# 钢铁行业 · 炼焦至轧钢全流程 预置数据源
+name: 钢铁全流程-主产线
+code: STEEL_FULL_LINE
+protocol: MQTT
+host: 10.40.3.31
+port: 1883
+industry: 钢铁
+collect_interval_ms: 5000
+description: 钢铁行业炼焦-烧结-炼铁-炼钢-轧钢全流程碳流监测（Mock）
+points:
+  # 焦化
+  - {code: COKE_OVEN_TEMP, name: 焦炉温度, unit: "℃", process_stage: 焦化, device: 焦炉1#, gen_base: 1180, gen_amplitude: 30, gen_period_s: 3600, gen_noise: 3}
+  - {code: COKE_YIELD, name: 焦炭产率, unit: "%", process_stage: 焦化, device: 焦炉1#, gen_base: 75.5, gen_amplitude: 1.5, gen_period_s: 7200, gen_noise: 0.2}
+  # 烧结
+  - {code: SINTER_TEMP, name: 烧结温度, unit: "℃", process_stage: 烧结, device: 烧结机2#, gen_base: 1250, gen_amplitude: 40, gen_period_s: 3600, gen_noise: 4}
+  - {code: SINTER_BED_SPEED, name: 台车速度, unit: "m/min", process_stage: 烧结, device: 烧结机2#, gen_base: 2.8, gen_amplitude: 0.2, gen_period_s: 1800, gen_noise: 0.02}
+  # 炼铁
+  - {code: BLAST_TEMP, name: 热风温度, unit: "℃", process_stage: 炼铁, device: 高炉3#, gen_base: 1180, gen_amplitude: 30, gen_period_s: 3600, gen_noise: 3}
+  - {code: BLAST_PRESSURE, name: 炉顶压力, unit: "kPa", process_stage: 炼铁, device: 高炉3#, gen_base: 235, gen_amplitude: 10, gen_period_s: 1800, gen_noise: 1}
+  - {code: PCI_RATE, name: 喷煤比, unit: "kg/t", process_stage: 炼铁, device: 高炉3#, gen_base: 165, gen_amplitude: 8, gen_period_s: 7200, gen_noise: 1}
+  - {code: HOT_METAL_PROD, name: 铁水产量, unit: "t/h", process_stage: 炼铁, device: 高炉3#, gen_base: 320, gen_amplitude: 15, gen_period_s: 3600, gen_noise: 2}
+  # 炼钢
+  - {code: CONVERTER_TEMP, name: 转炉温度, unit: "℃", process_stage: 炼钢, device: 转炉2#, gen_base: 1650, gen_amplitude: 25, gen_period_s: 2400, gen_noise: 3}
+  - {code: STEEL_PROD, name: 粗钢产量, unit: "t/h", process_stage: 炼钢, device: 连铸机1#, gen_base: 280, gen_amplitude: 12, gen_period_s: 3600, gen_noise: 2}
+  - {code: O2_BLOW, name: 氧气消耗, unit: "Nm³/t", process_stage: 炼钢, device: 转炉2#, gen_base: 58, gen_amplitude: 4, gen_period_s: 3600, gen_noise: 0.5}
+  # 轧钢
+  - {code: REHEAT_TEMP, name: 加热炉温度, unit: "℃", process_stage: 轧钢, device: 加热炉1#, gen_base: 1230, gen_amplitude: 20, gen_period_s: 3600, gen_noise: 2}
+  - {code: ROLLING_POWER, name: 轧机功率, unit: "MW", process_stage: 轧钢, device: 轧机2#, gen_base: 12.5, gen_amplitude: 1.2, gen_period_s: 1800, gen_noise: 0.1}
+  - {code: STEEL_OUTPUT, name: 成品钢材产量, unit: "t/h", process_stage: 轧钢, device: 轧机2#, gen_base: 265, gen_amplitude: 10, gen_period_s: 3600, gen_noise: 1.5}
+  # 全流程碳排
+  - {code: FULL_LINE_CO2, name: 全流程碳排, unit: "tCO2/h", process_stage: 排放, device: 在线监测, gen_base: 580, gen_amplitude: 30, gen_period_s: 3600, gen_noise: 5}
+  - {code: PRODUCT_CARBON_FOOTPRINT, name: 产品碳足迹, unit: "kgCO2/t钢", process_stage: 排放, device: 在线监测, gen_base: 2100, gen_amplitude: 70, gen_period_s: 7200, gen_noise: 8}
