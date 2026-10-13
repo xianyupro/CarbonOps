@@ -182,7 +182,7 @@ export default function KnowledgeGraphPage() {
       </div>
 
       {/* 图谱主体 */}
-      <div className="relative overflow-hidden rounded-lg border border-border bg-card">
+      <div className="relative overflow-hidden rounded-lg border border-border bg-[radial-gradient(ellipse_at_center,#f7fbfb_0%,#e9f0f0_78%,#dfe8e8_100%)]">
         {/* 顶部工具条 */}
         <div className="absolute left-3 top-3 z-10 flex items-center gap-2">
           <div className="relative">

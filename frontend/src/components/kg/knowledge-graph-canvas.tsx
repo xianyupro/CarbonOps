@@ -118,6 +118,20 @@ export function KnowledgeGraphCanvas({
   // graphData 身份必须稳定：仅当节点/边数据变化时才更新。
   const graphData = React.useMemo(() => ({ nodes, links: edges }), [nodes, edges]);
 
+  // d3 力参数调优：斥力增强拉开簇间距离，连线距离收紧让簇内紧凑 —— 空间层次感
+  React.useEffect(() => {
+    const fg = fgRef.current as unknown as {
+      d3Force: (name: string, force?: unknown) => { strength?: (v: number) => void; distance?: (v: number) => void } | undefined;
+    } | null;
+    try {
+      fg?.d3Force("charge")?.strength?.(-240);
+      fg?.d3Force("link")?.distance?.(50);
+      fg?.d3Force("center")?.strength?.(0.55);
+    } catch {
+      /* 引擎未就绪时跳过 */
+    }
+  }, [graphData]);
+
   return (
     <ForceGraph2D
       ref={fgRef as never}
@@ -151,7 +165,7 @@ export function KnowledgeGraphCanvas({
           const breath = 0.5 + 0.5 * Math.sin(t * 1.4 + node.id * 0.7 + i * 2.1);
           const gr = r * (2.2 + i * 1.1) + breath * r * 0.5;
           const g = ctx.createRadialGradient(x, y, r * 0.4, x, y, gr);
-          g.addColorStop(0, rgba(color, 0.28 - i * 0.1));
+          g.addColorStop(0, rgba(color, 0.2 - i * 0.07));
           g.addColorStop(1, rgba(color, 0));
           ctx.fillStyle = g;
           ctx.beginPath();
@@ -251,15 +265,15 @@ export function KnowledgeGraphCanvas({
           return "rgba(13,148,136,0.9)";
         if (highlightNodeIds && highlightNodeIds.size > 0 && !(highlightNodeIds.has(s) && highlightNodeIds.has(t)))
           return "rgba(148,163,184,0.1)";
-        if (selectedNodeId != null) return "rgba(148,163,184,0.18)";
-        return "rgba(148,163,184,0.42)";
+        if (selectedNodeId != null) return "rgba(148,163,184,0.22)";
+        return "rgba(100,116,139,0.5)";
       }}
       linkWidth={(e: GraphEdge) => {
         const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
         const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
         if (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) return 2.4;
         if (selectedNodeId != null && (s === selectedNodeId || t === selectedNodeId)) return 1.8;
-        return 0.9;
+        return 1.2;
       }}
       linkDirectionalArrowLength={(e: GraphEdge) => {
         const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
