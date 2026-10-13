@@ -19,3 +19,8 @@ frontend/tsconfig.tsbuildinfo
 *.log
 .trae/
 .zcode/
+
+# Secrets / local env
+.env
+.env.*
+!.env.example
