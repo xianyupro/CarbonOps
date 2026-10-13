@@ -21,6 +21,7 @@ import {
   Map as MapIcon,
   Maximize2,
   Play,
+  Plus,
   Save,
   Trash2,
   Workflow,
@@ -400,6 +401,23 @@ export default function FlowEditorPage() {
     return { nodes, edges };
   }
 
+  /** 新建流程：清空画布并放置 开始→结束 骨架 */
+  function handleNew() {
+    const g = graphRef.current;
+    if (!g) return;
+    g.clearCells();
+    const start = compByCode.get("logic.start");
+    const end = compByCode.get("logic.end");
+    if (start) g.addNode(createFlowNode(start, 80, 180, `n${Date.now().toString(36)}a`));
+    if (end) g.addNode(createFlowNode(end, 560, 180, `n${Date.now().toString(36)}b`));
+    setCurrentId(null);
+    setFlowName("未命名工艺流程");
+    setSelectedNode(null);
+    setRunResult(null);
+    setDirty(true);
+    toast.info("已创建空白流程，保存后生效");
+  }
+
   async function handleSave() {
     const g = exportGraph();
     try {
@@ -746,6 +764,9 @@ export default function FlowEditorPage() {
               </Tooltip>
             )}
 
+            <Button size="sm" variant="outline" onClick={handleNew} title="清空画布，创建新流程">
+              <Plus className="mr-1 h-3.5 w-3.5" /> 新建
+            </Button>
             <div className="ml-auto flex items-center gap-2">
               <Button size="sm" variant="outline" onClick={tidyLayout} title="按执行顺序自动排列节点">
                 <LayoutGrid className="mr-1 h-3.5 w-3.5" /> 整理布局
