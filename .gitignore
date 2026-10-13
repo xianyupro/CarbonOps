@@ -5,9 +5,7 @@ backend/__pycache__/
 backend/uploads/
 *.pyc
 
-# Database (regenerable via seed / import scripts)
-backend/carbonops.db
-backend/*.db
+# Database backups（主库 backend/carbonops.db 经 Git LFS 入库）
 backend/backups/
 
 # Node / Next.js
