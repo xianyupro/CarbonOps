@@ -242,6 +242,10 @@ export function SceneDetailView({ sceneId }: Props) {
           </div>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={() => router.push(`/cockpit/twin?scene=${scene.id}`)}>
+            <Box className="mr-1 h-3.5 w-3.5" />
+            在孪生中心打开
+          </Button>
           <Button variant="outline" size="sm">
             <PlayCircle className="mr-1 h-3.5 w-3.5" />
             启动仿真

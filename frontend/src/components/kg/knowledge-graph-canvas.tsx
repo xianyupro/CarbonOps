@@ -6,16 +6,15 @@
  * 交互：邻域聚焦淡化、路径高亮、节点拖拽固定（fx/fy）、右键菜单回调、重置视图、搜索定位。
  */
 import * as React from "react";
+import dynamic from "next/dynamic";
 
 import type { KgEdge, KgNode } from "@/types/api";
 import { categoryColor } from "./category-colors";
 
-// react-force-graph 的官方类型与我们的节点扩展类型不兼容，运行时无碍，统一放宽。
-// 必须用 React.lazy 而非 next/dynamic：后者不转发 ref（fgRef 永远为 null），
-// d3Force / zoomToFit / centerAt 等引擎方法会全部失效；挂载守卫替代 ssr:false。
-const ForceGraph2D = React.lazy(
-  () => import("react-force-graph-2d")
-) as unknown as React.ComponentType<Record<string, unknown>>;
+// react-force-graph 的官方类型与我们的节点扩展类型不兼容，运行时无碍，统一放宽
+const ForceGraph2D = dynamic(() => import("react-force-graph-2d"), {
+  ssr: false,
+}) as unknown as React.ComponentType<Record<string, unknown>>;
 
 export interface GraphNode extends KgNode {
   val?: number;
@@ -74,58 +73,6 @@ function edgeIds(e: GraphEdge): [number, number] {
   return [s, t];
 }
 
-/** d3 自定义力接口（仅用到 initialize/apply） */
-type CustomForce = ((alpha: number) => void) & {
-  initialize?: (nodes: GraphNode[]) => void;
-};
-
-/**
- * 碰撞力：重叠节点两两推开（O(n²)，百级节点无压力），
- * 兜底保证密集簇内节点不叠压 —— d3-force 未直接暴露时自行实现。
- */
-function makeCollideForce(radiusOf: (n: GraphNode) => number): CustomForce {
-  let ns: GraphNode[] = [];
-  const force = (alpha: number) => {
-    for (let i = 0; i < ns.length; i++) {
-      const a = ns[i];
-      for (let j = i + 1; j < ns.length; j++) {
-        const b = ns[j];
-        let dx = (b.x ?? 0) - (a.x ?? 0);
-        let dy = (b.y ?? 0) - (a.y ?? 0);
-        const min = radiusOf(a) + radiusOf(b);
-        const d2 = dx * dx + dy * dy;
-        if (d2 >= min * min) continue;
-        if (d2 === 0) {
-          dx = (Math.random() - 0.5) * 0.5;
-          dy = (Math.random() - 0.5) * 0.5;
-        }
-        const d = Math.sqrt(dx * dx + dy * dy) || 0.01;
-        const f = ((min - d) / d) * alpha * 0.5;
-        const mx = dx * f;
-        const my = dy * f;
-        const aFixed = a.fx != null;
-        const bFixed = b.fx != null;
-        if (!aFixed && !bFixed) {
-          a.x = (a.x ?? 0) - mx;
-          a.y = (a.y ?? 0) - my;
-          b.x = (b.x ?? 0) + mx;
-          b.y = (b.y ?? 0) + my;
-        } else if (!aFixed) {
-          a.x = (a.x ?? 0) - mx * 2;
-          a.y = (a.y ?? 0) - my * 2;
-        } else if (!bFixed) {
-          b.x = (b.x ?? 0) + mx * 2;
-          b.y = (b.y ?? 0) + my * 2;
-        }
-      }
-    }
-  };
-  force.initialize = (initNodes: GraphNode[]) => {
-    ns = initNodes;
-  };
-  return force;
-}
-
 export function KnowledgeGraphCanvas({
   nodes,
   edges,
@@ -144,57 +91,8 @@ export function KnowledgeGraphCanvas({
     centerAt: (x?: number, y?: number) => void;
     zoom: (k?: number, ms?: number) => void;
     zoomToFit: (ms?: number, px?: number) => void;
-    getGraphBbox?: () => { x: [number, number]; y: [number, number] } | null;
-    d3ReheatSimulation: () => void;
-    d3Force: (name: string, force?: unknown) => unknown;
   } | null>(null);
   const timeRef = React.useRef(0);
-  // 用户手动拖拽固定的节点（仅这些节点显示锚点标记；全局冻结不显示）
-  const pinnedIdsRef = React.useRef<Set<number>>(new Set());
-  // 收敛定时器（力配置 / 拖拽重排 / 重置视图共用）
-  const settleTimersRef = React.useRef<number[]>([]);
-
-  const clearSettleTimers = React.useCallback(() => {
-    for (const t of settleTimersRef.current) clearTimeout(t);
-    settleTimersRef.current = [];
-  }, []);
-
-  /**
-   * 布局演化 ms 毫秒后冻结全部节点（fx/fy 钉死）并适配取景。
-   * 引擎冷却/停机时机不可靠、布局会长期缓慢漂移，冻结是唯一稳定的收敛手段；
-   * 期间在 1s/3s/6s 做三次跟踪适配，避免演化过程大幅出画。
-   */
-  const settleAndFreeze = React.useCallback(
-    (ms: number) => {
-      clearSettleTimers();
-      const fit = () => {
-        try {
-          fgRef.current?.zoomToFit(600, 60);
-        } catch {
-          /* 引擎未就绪时跳过 */
-        }
-      };
-      for (const t of [1000, 3000, 6000]) {
-        if (t < ms) settleTimersRef.current.push(window.setTimeout(fit, t));
-      }
-      settleTimersRef.current.push(
-        window.setTimeout(() => {
-          for (const n of nodesRef.current) {
-            if (n.fx == null && Number.isFinite(n.x)) n.fx = n.x;
-            if (n.fy == null && Number.isFinite(n.y)) n.fy = n.y;
-          }
-          fit();
-        }, ms)
-      );
-    },
-    [clearSettleTimers]
-  );
-  // 纯客户端挂载守卫（替代原 next/dynamic 的 ssr:false）
-  const [mounted, setMounted] = React.useState(false);
-  React.useEffect(() => setMounted(true), []);
-  // 节点对象镜像：冻结时需要写入仿真实际使用的同一批对象
-  const nodesRef = React.useRef<GraphNode[]>(nodes);
-  nodesRef.current = nodes;
 
   // 呼吸动画时钟：持续重绘（autoPauseRedraw 关闭时按浏览器帧率刷新画布）
   React.useEffect(() => {
@@ -235,17 +133,15 @@ export function KnowledgeGraphCanvas({
     onFocusHandled?.();
   }, [focusNodeId, nodes, onFocusHandled]);
 
-  // 重置视图：解除全部拖拽固定 + 解冻重排 + 适配缩放
+  // 重置视图：解除全部拖拽固定 + 适配缩放
   React.useEffect(() => {
     if (!resetSignal) return;
-    pinnedIdsRef.current.clear();
-    for (const n of nodesRef.current) {
+    for (const n of nodes) {
       n.fx = null;
       n.fy = null;
     }
     try {
-      fgRef.current?.d3ReheatSimulation();
-      settleAndFreeze(8000);
+      fgRef.current?.zoomToFit(500, 60);
     } catch {
       /* 引擎未就绪时跳过 */
     }
@@ -264,87 +160,35 @@ export function KnowledgeGraphCanvas({
   // graphData 身份必须稳定：仅当节点/边数据变化时才更新。
   const graphData = React.useMemo(() => ({ nodes, links: edges }), [nodes, edges]);
 
-  // d3 力参数调优：斥力按度数缩放（枢纽强斥力把叶节点摊开，消除「枢纽小球」），
-  // 连线距离适度收紧维持簇内层次，中心力调弱避免整体向心挤压，
-  // 碰撞力兜底防叠压 —— 整体疏密均匀后 zoomToFit 也能铺满画布。
-  // 注意：ForceGraph2D 经 next/dynamic 异步加载，挂载晚于本组件的 effect，
-  // 必须轮询到引擎就绪再配置，否则 d3Force 全部静默落空（从未生效）。
+  // d3 力参数调优：斥力增强拉开簇间距离，连线距离收紧让簇内紧凑 —— 空间层次感
   React.useEffect(() => {
-    let disposed = false;
-    let tries = 0;
-    const timer = setInterval(() => {
-      if (disposed || tries++ > 200) {
-        clearInterval(timer);
-        return;
-      }
-      const fg = fgRef.current as unknown as {
-        d3Force: (
-          name: string,
-          force?: unknown
-        ) =>
-          | {
-              strength?: (v: unknown) => void;
-              distance?: (v: number) => void;
-            }
-          | undefined;
-        d3ReheatSimulation: () => void;
-        zoomToFit: (ms?: number, px?: number) => void;
-        getGraphBbox?: () => { x: [number, number]; y: [number, number] } | null;
-      } | null;
-      if (!fg || typeof fg.d3Force !== "function") return;
-      clearInterval(timer);
-      try {
-        fg.d3Force("charge")?.strength?.((n: GraphNode) => {
-          const deg = neighborMap.get(n.id)?.size ?? 0;
-          return -(150 + deg * 14);
-        });
-        // 弹簧强度 1/max(度数)：d3 默认 1/min(度数) 会让叶节点被「枢纽-叶子」硬弹簧
-        // 钉死在枢纽周围形成密球，软化枢纽连线后斥力才能把叶簇摊开
-        fg.d3Force("link")
-          ?.strength?.((e: GraphEdge) => {
-            const s = neighborMap.get(e.sourceNodeId)?.size ?? 1;
-            const t = neighborMap.get(e.targetNodeId)?.size ?? 1;
-            return 1 / Math.max(s, t);
-          });
-        fg.d3Force("link")?.distance?.(50);
-        fg.d3Force("center")?.strength?.(0.18);
-        fg.d3Force(
-          "collide",
-          makeCollideForce((n) => 5 + Math.sqrt(n.val ?? 1) * 2.4 + 5)
-        );
-        // 挂载到引擎就绪之间已用默认力跑了若干 tick，重置后让新参数完整接管布局
-        fg.d3ReheatSimulation();
-        // 布局演化 8 秒后冻结并适配取景（期间 1s/3s/6s 三次跟踪适配）
-        settleAndFreeze(8000);
-      } catch {
-        /* 引擎未就绪时跳过 */
-      }
-    }, 50);
-    return () => {
-      disposed = true;
-      clearInterval(timer);
-      clearSettleTimers();
-    };
-  }, [graphData, neighborMap, settleAndFreeze, clearSettleTimers]);
+    const fg = fgRef.current as unknown as {
+      d3Force: (name: string, force?: unknown) => { strength?: (v: number) => void; distance?: (v: number) => void } | undefined;
+    } | null;
+    try {
+      fg?.d3Force("charge")?.strength?.(-240);
+      fg?.d3Force("link")?.distance?.(50);
+      fg?.d3Force("center")?.strength?.(0.55);
+    } catch {
+      /* 引擎未就绪时跳过 */
+    }
+  }, [graphData]);
 
   const edgeInPath = (e: GraphEdge) => {
     const [s, t] = edgeIds(e);
     return (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) ?? false;
   };
 
-  if (!mounted) return null;
-
   return (
-    <React.Suspense fallback={null}>
-      <ForceGraph2D
+    <ForceGraph2D
       ref={fgRef as never}
       graphData={graphData}
       width={width}
       height={height}
       backgroundColor="rgba(0,0,0,0)"
       autoPauseRedraw={false}
-      cooldownTicks={280}
-      warmupTicks={60}
+      cooldownTicks={200}
+      warmupTicks={40}
       enableNodeDrag
       nodeRelSize={5}
       nodeLabel={(n: GraphNode) => {
@@ -362,7 +206,7 @@ export function KnowledgeGraphCanvas({
         );
       }}
       nodeCanvasObject={(node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
-        const r = 5 + Math.sqrt(node.val ?? 1) * 2.4;
+        const r = 4 + Math.sqrt(node.val ?? 1) * 1.8;
         const color = node.color ?? categoryColor(node.category);
         const dim = isDimmed(node.id);
         const t = timeRef.current;
@@ -439,8 +283,8 @@ export function KnowledgeGraphCanvas({
         ctx.lineWidth = 1.4 / globalScale;
         ctx.stroke();
 
-        // ⑥ 拖拽固定标记（左下小锚点，仅用户手动固定的节点）
-        if (pinnedIdsRef.current.has(node.id)) {
+        // ⑥ 拖拽固定标记（左下小锚点）
+        if (node.fx != null && node.fy != null) {
           ctx.beginPath();
           ctx.arc(x - r * 0.75, y + r * 0.75, Math.max(r * 0.2, 1.6), 0, Math.PI * 2);
           ctx.fillStyle = "rgba(71,85,105,0.9)";
@@ -473,22 +317,19 @@ export function KnowledgeGraphCanvas({
           }
         }
 
-        // ⑧ 标签（白描边晕 + 深色字；长名截断，奇偶上下交替减少密集区碰撞）
-        if (globalScale > 0.55 || deg >= 4 || selected) {
+        // ⑧ 标签（白描边晕 + 深色字，保证亮底可读）
+        if (globalScale > 0.85 || deg >= 4 || selected) {
           const fontSize = Math.max(10 / globalScale, 3);
           const weight = deg >= 6 || selected ? 600 : 400;
           ctx.font = `${weight} ${fontSize}px Inter, system-ui, sans-serif`;
           ctx.textAlign = "center";
-          const label =
-            node.name.length > 14 ? `${node.name.slice(0, 13)}…` : node.name;
-          const above = node.id % 2 === 1;
-          ctx.textBaseline = above ? "bottom" : "top";
-          const ly = above ? y - r - 2.5 : y + r + 2.5;
+          ctx.textBaseline = "top";
+          const ly = y + r + 2.5;
           ctx.lineWidth = fontSize / 3.2;
           ctx.strokeStyle = "rgba(255,255,255,0.9)";
-          ctx.strokeText(label, x, ly);
+          ctx.strokeText(node.name, x, ly);
           ctx.fillStyle = dim ? "#94a3b8" : "#1e293b";
-          ctx.fillText(label, x, ly);
+          ctx.fillText(node.name, x, ly);
         }
 
         ctx.globalAlpha = 1;
@@ -536,22 +377,9 @@ export function KnowledgeGraphCanvas({
         onBackgroundContextMenu?.(ev.clientX, ev.clientY);
       }}
       onNodeDragEnd={(n: GraphNode) => {
-        // 拖拽后固定该节点（d3 fx/fy），其余节点解冻参与重排，数秒后重新冻结
+        // 拖拽后固定位置（d3 fx/fy），再次拖动可更新，「重置视图」统一解除
         n.fx = Number.isFinite(n.x) ? n.x : null;
         n.fy = Number.isFinite(n.y) ? n.y : null;
-        if (n.fx != null && n.fy != null) pinnedIdsRef.current.add(n.id);
-        for (const o of nodesRef.current) {
-          if (o.id !== n.id) {
-            o.fx = null;
-            o.fy = null;
-          }
-        }
-        try {
-          fgRef.current?.d3ReheatSimulation();
-        } catch {
-          /* 引擎未就绪时跳过 */
-        }
-        settleAndFreeze(3500);
       }}
       onEngineStop={() => {
         try {
@@ -560,8 +388,7 @@ export function KnowledgeGraphCanvas({
           /* 引擎停止竞态：忽略 */
         }
       }}
-      />
-    </React.Suspense>
+    />
   );
 }
 

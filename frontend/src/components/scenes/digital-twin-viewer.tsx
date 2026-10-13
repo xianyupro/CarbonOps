@@ -1,9 +1,12 @@
 "use client";
 
 /**
- * 场景详情 — 3D 数字孪生查看器（行业场景版）。
+ * 场景详情 — 3D 数字孪生查看器（行业示范场景版 · 浅色统一主题）。
  *
- * 与主挥发窑孪生（components/cockpit/kiln-twin.tsx）同级的细节度，按 5 类装备分别建模：
+ * 与主挥发窑孪生（components/cockpit/kiln-twin.tsx）同一视觉语言：
+ * 浅色画布（#eef4f4）+ 浅色网格 + 深灰工业设备 + 白底标注卡 + 青色强调。
+ *
+ * 按 5 类装备分别建模：
  * - 高炉炼铁：炉缸/炉身/炉喉 + 热风围管风口 + 热风炉×2（蓄热交替辉光）+ 喷煤罐管路 +
  *   斜桥料车往复 + 重力除尘器 + 出铁沟铁水流珠（∝喷煤量）+ 铁水罐
  * - 回转挥发窑：倾斜筒体轴向温度场着色（峰值∝窑温参数）+ 滚圈/托轮/基础墩 + 大齿圈与主传动反向联动 +
@@ -38,6 +41,8 @@ import type { Scene, TwinType } from "@/types/cloud-edge";
 
 interface Props {
   scene: Scene;
+  /** 填满父容器高度（孪生中心嵌入用）；默认固定 460px */
+  fullHeight?: boolean;
 }
 
 /* ================= 实时参数视图（scene.params 驱动 + 1s 抖动） ================= */
@@ -212,7 +217,7 @@ const DEVICE_META: Record<TwinType, Record<string, DeviceMeta>> = {
       role: "熔盐电解核心",
       desc: "冰晶石-氧化铝熔盐在 950℃ 左右电解，阳极炭块持续消耗、阴极析出铝水；槽电压是判断电解质状态与阳极效应的核心参数。",
       metrics: [
-        { label: "槽电压", value: (t) => `${f1(j(4.08, 0.03, t))} V` },
+        { label: "槽电压", value: (t) => `${f2(j(4.08, 0.03, t))} V` },
         { label: "电解温度", value: (t) => `${f0(j(t.mainTemp, 4, t, 2))} ℃` },
       ],
     },
@@ -666,7 +671,7 @@ function BlastFurnaceModel({
       <pointLight position={[0.3, 0.7, 1.0]} color="#fb923c" intensity={5} distance={4} />
       <mesh position={[0.75, 0.42, 1.05]} rotation={[0, 0, 0.05]}>
         <boxGeometry args={[1.5, 0.08, 0.42]} />
-        <meshStandardMaterial color="#3f4a58" metalness={0.4} roughness={0.6} />
+        <meshStandardMaterial color="#5b6774" metalness={0.4} roughness={0.6} />
       </mesh>
       <group ref={beadsRef}>
         {Array.from({ length: 6 }).map((_, i) => (
@@ -689,7 +694,7 @@ function BlastFurnaceModel({
       {/* 炉基 */}
       <mesh position={[0, 0.08, 0]} receiveShadow>
         <cylinderGeometry args={[1.5, 1.65, 0.16, 28]} />
-        <meshStandardMaterial color="#26303c" roughness={0.9} />
+        <meshStandardMaterial color="#b9c3cb" roughness={0.9} />
       </mesh>
       {/* 告警脉冲（热风炉「需关注」） */}
       {alert && telemetry.alerts > 0 && <AlertRing position={alert.position} radius={alert.radius} />}
@@ -806,7 +811,7 @@ function RotaryKilnModel({
             return (
               <mesh key={`pier-${x}`} position={[x, top / 2, 0]}>
                 <boxGeometry args={[0.9, top, 1.6]} />
-                <meshStandardMaterial color="#3a4552" roughness={0.9} />
+                <meshStandardMaterial color="#a8aeb8" roughness={0.9} />
               </mesh>
             );
           })}
@@ -957,7 +962,7 @@ function RotaryKilnModel({
         {/* 地面 */}
         <mesh position={[0.4, 0.03, 0.2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
           <planeGeometry args={[10, 5]} />
-          <meshStandardMaterial color="#1a2230" roughness={0.95} />
+          <meshStandardMaterial color="#e3ebec" roughness={0.95} />
         </mesh>
         {/* 告警脉冲（下料装置「需关注」） */}
         {alert && telemetry.alerts > 0 && <AlertRing position={alert.position} radius={alert.radius} />}
@@ -1100,13 +1105,13 @@ function FlashFurnaceModel({
         ))}
         <mesh position={[0, 0.95, 0]}>
           <cylinderGeometry args={[0.08, 0.08, 0.5, 8]} />
-          <meshStandardMaterial color="#22d3ee" emissive="#22d3ee" emissiveIntensity={0.6} />
+          <meshStandardMaterial color="#14b8a6" emissive="#14b8a6" emissiveIntensity={0.6} />
         </mesh>
         <mesh position={[1.2, 1.5, 0.75]} rotation={[0, 0.35, Math.PI / 2 - 0.55]}>
           <cylinderGeometry args={[0.055, 0.055, 3.1, 8]} />
           <meshStandardMaterial
-            color="#22d3ee"
-            emissive="#22d3ee"
+            color="#14b8a6"
+            emissive="#14b8a6"
             emissiveIntensity={0.25 + (telemetry.airPct / 100) * 0.7}
           />
         </mesh>
@@ -1164,7 +1169,7 @@ function FlashFurnaceModel({
       {/* 地面 */}
       <mesh position={[0.5, 0.03, 0.2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[10.5, 5]} />
-        <meshStandardMaterial color="#1a2230" roughness={0.95} />
+        <meshStandardMaterial color="#e3ebec" roughness={0.95} />
       </mesh>
     </group>
   );
@@ -1215,7 +1220,7 @@ function ElectrolyticCellModel({
       {/* 基础 */}
       <mesh position={[0, 0.12, 0]} receiveShadow castShadow>
         <boxGeometry args={[5.6, 0.24, 1.8]} />
-        <meshStandardMaterial color="#26303c" roughness={0.9} />
+        <meshStandardMaterial color="#b9c3cb" roughness={0.9} />
       </mesh>
       {/* 槽列 ×5：槽壳 + 电解质辉光带（壳顶外露）+ 槽罩 + 阳极炭块 + 铝导杆 */}
       {cells.map((x, ci) => (
@@ -1253,7 +1258,7 @@ function ElectrolyticCellModel({
               </mesh>
               <mesh position={[0, 1.46, 0]} rotation={[0, Math.PI / 2, 0]}>
                 <cylinderGeometry args={[0.025, 0.025, 0.3, 8]} />
-                <meshStandardMaterial color="#d7dee6" metalness={0.85} roughness={0.3} />
+                <meshStandardMaterial color="#c0c7cf" metalness={0.85} roughness={0.3} />
               </mesh>
               <mesh position={[0, 1.54, 0]}>
                 <boxGeometry args={[0.04, 0.06, 0.3]} />
@@ -1264,7 +1269,7 @@ function ElectrolyticCellModel({
           {/* 立柱母线 */}
           <mesh position={[0.3, 1.38, 0.62]}>
             <boxGeometry args={[0.08, 0.6, 0.05]} />
-            <meshStandardMaterial color="#d7dee6" metalness={0.85} roughness={0.3} />
+            <meshStandardMaterial color="#c0c7cf" metalness={0.85} roughness={0.3} />
           </mesh>
         </group>
       ))}
@@ -1272,7 +1277,7 @@ function ElectrolyticCellModel({
       {[0.72, -0.72].map((z) => (
         <mesh key={z} position={[0, 1.66, z]} castShadow {...h("busbar")}>
           <boxGeometry args={[5.2, 0.09, 0.11]} />
-          <meshStandardMaterial color="#d7dee6" metalness={0.85} roughness={0.28} />
+          <meshStandardMaterial color="#c0c7cf" metalness={0.85} roughness={0.28} />
         </mesh>
       ))}
       {/* 电流辉光珠（沿母线双向流动） */}
@@ -1280,7 +1285,7 @@ function ElectrolyticCellModel({
         {Array.from({ length: 8 }).map((_, i) => (
           <mesh key={i}>
             <sphereGeometry args={[0.045, 8, 8]} />
-            <meshStandardMaterial color="#22d3ee" emissive="#22d3ee" emissiveIntensity={1.4} />
+            <meshStandardMaterial color="#0d9488" emissive="#14b8a6" emissiveIntensity={1.4} />
           </mesh>
         ))}
       </group>
@@ -1483,7 +1488,7 @@ function CrackingFurnaceModel({
       {/* 地面 */}
       <mesh position={[0.6, 0.03, 0.2]} rotation={[-Math.PI / 2, 0, 0]} receiveShadow>
         <planeGeometry args={[10, 4.6]} />
-        <meshStandardMaterial color="#1a2230" roughness={0.95} />
+        <meshStandardMaterial color="#e3ebec" roughness={0.95} />
       </mesh>
     </group>
   );
@@ -1528,7 +1533,7 @@ function AutoRotate({ enabled, children }: { enabled: boolean; children: React.R
 
 /* ================= 主组件 ================= */
 
-export function DigitalTwinViewer({ scene }: Props) {
+export function DigitalTwinViewer({ scene, fullHeight = false }: Props) {
   const [autoRotate, setAutoRotate] = React.useState(true);
   const [resetKey, setResetKey] = React.useState(0);
   const [isReady, setReady] = React.useState(false);
@@ -1555,26 +1560,33 @@ export function DigitalTwinViewer({ scene }: Props) {
     : null;
 
   return (
-    <div className="relative h-[460px] w-full overflow-hidden rounded-lg border border-border/40 bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div
+      className={`relative w-full overflow-hidden rounded-lg border border-border bg-[#eef4f4] ${
+        fullHeight ? "h-full min-h-[420px]" : "h-[460px]"
+      }`}
+    >
       {/* 加载提示 */}
       {!isReady && (
-        <div className="absolute inset-0 z-10 flex items-center justify-center bg-slate-950/80 text-slate-200">
+        <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/70 text-muted-foreground">
           <Loader2 className="mr-2 h-5 w-5 animate-spin" />
           <span className="text-sm">加载 3D 数字孪生模型…</span>
         </div>
       )}
 
       {/* 顶部标签 */}
-      <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full bg-slate-900/70 px-3 py-1 text-xs text-slate-200 backdrop-blur">
-        <Box className="h-3.5 w-3.5 text-emerald-400" />
+      <div className="absolute left-4 top-4 z-10 flex items-center gap-2 rounded-full border border-border bg-card/90 px-3 py-1 text-xs text-slate-600 shadow-sm backdrop-blur">
+        <Box className="h-3.5 w-3.5 text-teal-600" />
         <span>3D 数字孪生</span>
-        <span className="text-slate-500">·</span>
+        <span className="text-slate-300">·</span>
         <span>{scene.name}</span>
+        <span className="rounded bg-amber-600/10 px-1.5 py-0.5 text-[9px] font-medium text-amber-700">
+          示范数据
+        </span>
       </div>
 
       {/* 活跃告警徽标 */}
       {scene.alerts > 0 && (
-        <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-red-500/40 bg-red-500/15 px-3 py-1 text-xs text-red-300 backdrop-blur">
+        <div className="absolute left-1/2 top-4 z-10 flex -translate-x-1/2 items-center gap-1.5 rounded-full border border-red-600/30 bg-red-600/10 px-3 py-1 text-xs text-red-600 backdrop-blur">
           <TriangleAlert className="h-3.5 w-3.5" />
           {scene.alerts} 项活跃告警 · 见红色脉冲环
         </div>
@@ -1584,8 +1596,10 @@ export function DigitalTwinViewer({ scene }: Props) {
       <div className="absolute right-4 top-4 z-10 flex gap-2">
         <button
           type="button"
-          className={`flex h-8 w-8 items-center justify-center rounded-full backdrop-blur transition ${
-            showHotspots ? "bg-emerald-500 text-white" : "bg-slate-900/70 text-slate-200 hover:bg-slate-800"
+          className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur transition ${
+            showHotspots
+              ? "border-teal-600 bg-teal-600 text-white"
+              : "border-border bg-card text-slate-500 hover:text-teal-700"
           }`}
           onClick={() => setShowHotspots((v) => !v)}
           title="参数标注"
@@ -1594,8 +1608,10 @@ export function DigitalTwinViewer({ scene }: Props) {
         </button>
         <button
           type="button"
-          className={`flex h-8 w-8 items-center justify-center rounded-full backdrop-blur transition ${
-            showLabels ? "bg-emerald-500 text-white" : "bg-slate-900/70 text-slate-200 hover:bg-slate-800"
+          className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur transition ${
+            showLabels
+              ? "border-teal-600 bg-teal-600 text-white"
+              : "border-border bg-card text-slate-500 hover:text-teal-700"
           }`}
           onClick={() => setShowLabels((v) => !v)}
           title="设备名称"
@@ -1604,8 +1620,10 @@ export function DigitalTwinViewer({ scene }: Props) {
         </button>
         <button
           type="button"
-          className={`flex h-8 w-8 items-center justify-center rounded-full backdrop-blur transition ${
-            autoRotate ? "bg-emerald-500 text-white" : "bg-slate-900/70 text-slate-200 hover:bg-slate-800"
+          className={`flex h-8 w-8 items-center justify-center rounded-full border backdrop-blur transition ${
+            autoRotate
+              ? "border-teal-600 bg-teal-600 text-white"
+              : "border-border bg-card text-slate-500 hover:text-teal-700"
           }`}
           onClick={() => setAutoRotate((v) => !v)}
           title="自动巡游"
@@ -1614,7 +1632,7 @@ export function DigitalTwinViewer({ scene }: Props) {
         </button>
         <button
           type="button"
-          className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-900/70 text-slate-200 backdrop-blur transition hover:bg-slate-800"
+          className="flex h-8 w-8 items-center justify-center rounded-full border border-border bg-card text-slate-500 backdrop-blur transition hover:text-teal-700"
           onClick={() => {
             setCard(null);
             setResetKey((k) => k + 1);
@@ -1626,7 +1644,7 @@ export function DigitalTwinViewer({ scene }: Props) {
       </div>
 
       {/* 图例 */}
-      <div className="absolute bottom-4 left-4 z-10 flex gap-3 rounded-lg bg-slate-900/70 px-3 py-2 text-[11px] text-slate-200 backdrop-blur">
+      <div className="absolute bottom-4 left-4 z-10 flex gap-3 rounded-lg border border-border bg-card/90 px-3 py-2 text-[11px] text-slate-500 shadow-sm backdrop-blur">
         <span className="flex items-center gap-1">
           <span className="inline-block h-2 w-2 rounded-full bg-red-500" />
           高温区
@@ -1649,33 +1667,39 @@ export function DigitalTwinViewer({ scene }: Props) {
         key={resetKey}
         shadows
         camera={{ position: [6, 4.2, 6], fov: 45 }}
-        onCreated={() => setReady(true)}
+        onCreated={({ scene: s }) => {
+          s.background = new THREE.Color("#eef4f4");
+          s.fog = new THREE.Fog("#eef4f4", 24, 60);
+          setReady(true);
+        }}
         style={{ background: "transparent" }}
       >
-        <ambientLight intensity={0.55} />
+        <ambientLight intensity={0.75} />
         <directionalLight
           position={[5, 8, 5]}
-          intensity={1.15}
+          intensity={1.2}
           castShadow
           shadow-mapSize-width={1024}
           shadow-mapSize-height={1024}
         />
-        <pointLight position={[-5, 3, -3]} intensity={0.4} color="#22d3ee" />
+        <directionalLight position={[-5, 4, -4]} intensity={0.35} />
         <AutoRotate enabled={autoRotate}>
           <ModelByType twinType={scene.twinType} telemetry={telemetry} openCard={openCard} />
           {/* 参数热点标注 */}
           {showHotspots &&
             hotspots.map((h, i) => (
               <Html key={i} position={h.position} center distanceFactor={7} style={{ pointerEvents: "none" }}>
-                <div className="select-none whitespace-nowrap rounded-md border border-slate-700 bg-slate-900/95 px-2 py-1 text-[10px] text-slate-100 shadow-lg backdrop-blur">
+                <div className="select-none whitespace-nowrap rounded-md border border-teal-600/30 bg-white/92 px-2 py-1 text-[10px] shadow-md backdrop-blur">
                   <div className="flex items-center gap-1">
                     <span
                       className="inline-block h-2 w-2 rounded-full"
                       style={{ background: h.color, boxShadow: `0 0 6px ${h.color}` }}
                     />
-                    <span className="text-slate-300">{h.label}</span>
+                    <span className="text-slate-500">{h.label}</span>
                   </div>
-                  <div className="font-mono text-[11px] font-semibold text-white">{h.value(telemetry)}</div>
+                  <div className="font-mono text-[11px] font-semibold tabular-nums text-teal-700">
+                    {h.value(telemetry)}
+                  </div>
                 </div>
               </Html>
             ))}
@@ -1683,9 +1707,9 @@ export function DigitalTwinViewer({ scene }: Props) {
           {showLabels &&
             labels.map((l) => (
               <Html key={l.name} position={l.pos} center distanceFactor={9} style={{ pointerEvents: "none" }}>
-                <div className="flex select-none items-center gap-1 whitespace-nowrap rounded border border-slate-600/70 bg-slate-900/85 px-1.5 py-0.5 shadow backdrop-blur">
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" />
-                  <span className="text-[10px] font-medium text-slate-200">{l.name}</span>
+                <div className="flex select-none items-center gap-1 whitespace-nowrap rounded border border-slate-300 bg-white/85 px-1.5 py-0.5 shadow-sm backdrop-blur">
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-teal-600" />
+                  <span className="text-[10px] font-medium text-slate-600">{l.name}</span>
                 </div>
               </Html>
             ))}
@@ -1699,22 +1723,22 @@ export function DigitalTwinViewer({ scene }: Props) {
           maxDistance={20}
           target={[0, 1.4, 0]}
         />
-        {/* 网格地面 */}
-        <gridHelper args={[20, 20, "#334155", "#1e293b"]} position={[0, 0.01, 0]} />
+        {/* 网格地面（与主孪生同款浅色网格） */}
+        <gridHelper args={[20, 20, "#cbd5d5", "#9fc4c4"]} position={[0, 0.01, 0]} />
       </Canvas>
 
-      {/* 设备信息卡（点击场景设备弹出） */}
+      {/* 设备信息卡（点击场景设备弹出，与主孪生设备卡同款） */}
       {cardMeta && (
-        <div className="absolute bottom-4 left-4 z-20 w-72 rounded-lg border border-slate-700 bg-slate-900/95 p-3 shadow-xl backdrop-blur">
+        <div className="absolute bottom-4 left-4 z-20 w-72 rounded-lg border border-border bg-card/95 p-3 shadow-lg backdrop-blur">
           <div className="flex items-start justify-between gap-2">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-semibold text-slate-100">{cardMeta.meta.name}</p>
-              <span className="rounded bg-emerald-500/15 px-1.5 py-0.5 text-[9px] text-emerald-300">
+              <p className="text-xs font-semibold text-foreground">{cardMeta.meta.name}</p>
+              <span className="rounded bg-teal-600/10 px-1.5 py-0.5 text-[9px] text-teal-700">
                 {cardMeta.meta.role}
               </span>
             </div>
             <button
-              className="text-xs text-slate-500 hover:text-slate-200"
+              className="text-xs text-muted-foreground hover:text-foreground"
               onClick={() => setCard(null)}
             >
               ✕
@@ -1725,22 +1749,22 @@ export function DigitalTwinViewer({ scene }: Props) {
               {cardMeta.meta.metrics.map((m) => (
                 <div
                   key={m.label}
-                  className="flex-1 rounded-md border border-slate-700 bg-slate-800/60 px-2 py-1.5"
+                  className="flex-1 rounded-md border border-border bg-muted/40 px-2 py-1.5"
                 >
-                  <p className="text-[9px] text-slate-400">{m.label}</p>
-                  <p className="font-mono text-sm font-semibold tabular-nums text-emerald-300">
+                  <p className="text-[9px] text-muted-foreground">{m.label}</p>
+                  <p className="font-mono text-sm font-semibold tabular-nums text-teal-700">
                     {m.value(telemetry)}
                   </p>
                 </div>
               ))}
             </div>
           )}
-          <p className="mt-2 text-[10px] leading-relaxed text-slate-400">{cardMeta.meta.desc}</p>
+          <p className="mt-2 text-[10px] leading-relaxed text-muted-foreground">{cardMeta.meta.desc}</p>
         </div>
       )}
 
       {/* 底部说明 */}
-      <div className="pointer-events-none absolute bottom-4 right-4 z-10 text-[10px] text-slate-500">
+      <div className="pointer-events-none absolute bottom-4 right-4 z-10 text-[10px] text-muted-foreground/70">
         🖱 左拖旋转 · 右键拖移 · 滚轮缩放 · 点击设备查看详情
       </div>
     </div>

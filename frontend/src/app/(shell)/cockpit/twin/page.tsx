@@ -1,13 +1,15 @@
 "use client";
 
 /**
- * 数字孪生 —— 1号挥发窑三维仿真驾驶舱（平台 C 位）。
- * 数据：从数据基座按名称取点位 → 5s 轮询最新值（含温度场曲线 valueText）→ 驱动三维场景。
- * 布局：左侧三维画布（竖向温度场图例 / 分段信息卡 / 设备信息卡叠加层）+ 右侧 260px 实时遥测面板。
- * 交互：筒体分段点击 / 窑头罩·给料圆盘·余热锅炉·电收尘·烟囱点击信息卡 / 4 个相机机位预设。
+ * 数字孪生中心 —— 驾驶舱统一孪生入口。
+ * 语义分层：① 1号挥发窑 = 生产场景（现场实测数据驱动，平台 C 位）；
+ *          ② 行业示范场景（高炉/锌挥发窑/闪速炉/电解槽/裂解炉）= 能力演示（工艺额定值模拟数据）。
+ * 通过顶部场景切换在同页加载对应孪生，标题/工具条/右侧面板/数据来源说明随之切换，
+ * 与「低碳运行场景」卡片、「场景工作台」形成同一套语义：打开孪生 → 统一入口。
  */
 import * as React from "react";
 import dynamic from "next/dynamic";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   Activity,
@@ -19,6 +21,8 @@ import {
   ScanEye,
   Boxes,
   Tag,
+  Layers,
+  ExternalLink,
 } from "lucide-react";
 import { TwinSimulator } from "@/lib/twin-sim";
 
@@ -31,6 +35,8 @@ import type {
   ViewPreset,
   TwinDeviceInfo,
 } from "@/components/cockpit/kiln-twin";
+import { SCENES } from "@/mock/cloud-edge";
+import type { Scene } from "@/types/cloud-edge";
 
 const KilnTwin = dynamic(() => import("@/components/cockpit/kiln-twin"), {
   ssr: false,
@@ -40,6 +46,71 @@ const KilnTwin = dynamic(() => import("@/components/cockpit/kiln-twin"), {
     </div>
   ),
 });
+
+const SceneViewer = dynamic(() => import("@/components/scenes/digital-twin-viewer"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 正在加载三维引擎…
+    </div>
+  ),
+});
+
+/** 示范场景短名（切换条用） */
+const SCENE_SHORT: Record<string, string> = {
+  steel: "高炉炼铁",
+  zinc: "锌挥发窑",
+  copper: "铜闪速炉",
+  aluminum: "铝电解槽",
+  chemical: "裂解炉",
+};
+
+/** 示范场景右侧面板参数行（按装备类型给出工艺语义标签） */
+function sceneParamRows(scene: Scene): { label: string; value: string; unit: string }[] {
+  const p = scene.params;
+  const t = scene.twinType;
+  const rows: { label: string; value: string; unit: string }[] = [];
+  if (!p) return rows;
+  const add = (label: string, v: number | undefined, unit: string, digits = 1, scale = 1) =>
+    rows.push({
+      label,
+      value: v == null ? "--" : (v * scale).toFixed(digits),
+      unit,
+    });
+  if (t === "blastFurnace") {
+    add("炉缸温度", p.kilnTemp, "℃", 0);
+    add("富氧率", p.airRatio, "%", 1, 100);
+    add("喷煤量", p.fuelFlow, "t/h");
+    add("鼓风量", p.speed, "kNm³/h", 0);
+    add("炉渣温度", p.slagTemp, "℃", 0);
+    add("煤气温度", p.exhaustTemp, "℃", 0);
+  } else if (t === "rotaryKiln") {
+    add("焙烧带温度", p.kilnTemp, "℃", 0);
+    add("窑速", p.speed, "rpm", 0);
+    add("给料量", p.inletSpeed, "t/h");
+    add("风氧配比", p.airRatio, "%", 1, 100);
+    add("渣温", p.slagTemp, "℃", 0);
+    add("排烟温度", p.exhaustTemp, "℃", 0);
+  } else if (t === "flashFurnace") {
+    add("反应塔温度", p.kilnTemp, "℃", 0);
+    add("富氧浓度", p.airRatio, "%", 1, 100);
+    add("投料量", p.inletSpeed, "t/h");
+    add("熔池温度", p.slagTemp, "℃", 0);
+    add("工艺风量", p.speed, "kNm³/h", 0);
+    add("锅炉入口烟温", p.exhaustTemp, "℃", 0);
+  } else if (t === "electrolyticCell") {
+    add("电解温度", p.kilnTemp ?? 960, "℃", 0);
+    add("系列电流", p.speed ?? 385, "kA", 0);
+    add("氧化铝浓度", p.airRatio, "%", 1, 100);
+    add("下料速率", p.inletSpeed, "kg/s");
+  } else if (t === "crackingFurnace") {
+    add("炉膛温度", p.kilnTemp ?? 1010, "℃", 0);
+    add("燃料气", p.fuelFlow, "t/h");
+    add("进料量", p.inletSpeed, "t/h");
+    add("排烟温度", p.exhaustTemp, "℃", 0);
+  }
+  return rows;
+}
 
 /** 关键点位名称 → 孪生字段 */
 const POINT_BINDING: { name: string; field: keyof KilnTelemetry }[] = [
@@ -148,6 +219,7 @@ const PANEL_GROUPS: { group: string; rows: PanelRow[] }[] = [
 ];
 
 export default function KilnTwinPage() {
+  const router = useRouter();
   const [telemetry, setTelemetry] = React.useState<KilnTelemetry>(EMPTY);
   const [stamps, setStamps] = React.useState<FieldStamps>({});
   const [lastSync, setLastSync] = React.useState<string>("--:--:--");
@@ -163,8 +235,22 @@ export default function KilnTwinPage() {
   const [demoMode, setDemoMode] = React.useState(
     () => localStorage.getItem("kiln_twin_demo") === "1"
   );
+  // 场景切换：null = 1号挥发窑（生产实测）；否则为行业示范场景 id（支持 ?scene= 直达）
+  const [sceneId, setSceneId] = React.useState<string | null>(() => {
+    if (typeof window === "undefined") return null;
+    return new URLSearchParams(window.location.search).get("scene");
+  });
+  const activeScene = sceneId ? SCENES.find((s) => s.id === sceneId) ?? null : null;
   const simRef = React.useRef<TwinSimulator | null>(null);
   const pointIdsRef = React.useRef<Partial<Record<keyof KilnTelemetry, number>>>({});
+
+  function switchScene(id: string | null) {
+    setSceneId(id);
+    const url = new URL(window.location.href);
+    if (id) url.searchParams.set("scene", id);
+    else url.searchParams.delete("scene");
+    window.history.replaceState(null, "", url.toString());
+  }
 
   // 1) 解析点位 ID
   React.useEffect(() => {
@@ -316,67 +402,133 @@ export default function KilnTwinPage() {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-semibold">挥发窑数字孪生</h1>
+          <div className="flex flex-wrap items-center gap-2">
+            <h1 className="text-xl font-semibold">
+              {activeScene ? activeScene.name : "挥发窑数字孪生"}
+            </h1>
+            {activeScene ? (
+              <span className="rounded bg-amber-600/10 px-2 py-0.5 text-[10px] font-medium text-amber-700">
+                示范场景 · 模拟数据
+              </span>
+            ) : (
+              <span className="rounded bg-teal-600/10 px-2 py-0.5 text-[10px] font-medium text-teal-700">
+                1号机组 · 生产实测
+              </span>
+            )}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            1号回转挥发窑三维仿真 · 全流程设备（上料→给料→焙烧→水淬→余热回收→收尘→脱硫→引风→排放）
-            由现场实时数据驱动 · 10 类关键设备可点击查看工艺详情（5s 刷新）
+            {activeScene
+              ? `${activeScene.desc} · 行业示范场景，展示平台跨行业孪生能力（数据为工艺额定值模拟，不接入数据基座）`
+              : "1号回转挥发窑三维仿真 · 全流程设备（上料→给料→焙烧→水淬→余热回收→收尘→脱硫→引风→排放）由现场实时数据驱动 · 10 类关键设备可点击查看工艺详情（5s 刷新）"}
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button
-            variant={demoMode ? "default" : "outline"}
-            size="sm"
-            onClick={toggleDemo}
-            className={demoMode ? "bg-amber-600 hover:bg-amber-700" : ""}
-          >
-            <FlaskConical className="mr-1 h-4 w-4" />
-            模拟演示
-            {demoMode ? <span className="ml-1 font-cyber text-[9px]">ON</span> : null}
-          </Button>
-          <Button variant={showLabels ? "default" : "outline"} size="sm" onClick={() => setShowLabels((v) => !v)}>
-            <Tag className="mr-1 h-4 w-4" /> 数据标签
-          </Button>
-          <Button variant={showDevices ? "default" : "outline"} size="sm" onClick={() => setShowDevices((v) => !v)}>
-            <Boxes className="mr-1 h-4 w-4" /> 设备标签
-          </Button>
-          <Button variant={autoRotate ? "default" : "outline"} size="sm" onClick={() => setAutoRotate((v) => !v)}>
-            <RotateCw className="mr-1 h-4 w-4" /> 自动巡游
-          </Button>
-          <Button variant={night ? "default" : "outline"} size="sm" onClick={() => setNight((v) => !v)}>
-            <Moon className="mr-1 h-4 w-4" /> 夜间模式
-          </Button>
-          <Button variant={xray ? "default" : "outline"} size="sm" onClick={() => setXray((v) => !v)}>
-            <ScanEye className="mr-1 h-4 w-4" /> 窑内透视
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
-            <RefreshCw className="mr-1 h-4 w-4" /> 刷新
-          </Button>
-        </div>
+        {!activeScene && (
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant={demoMode ? "default" : "outline"}
+              size="sm"
+              onClick={toggleDemo}
+              className={demoMode ? "bg-amber-600 hover:bg-amber-700" : ""}
+            >
+              <FlaskConical className="mr-1 h-4 w-4" />
+              模拟演示
+              {demoMode ? <span className="ml-1 font-cyber text-[9px]">ON</span> : null}
+            </Button>
+            <Button variant={showLabels ? "default" : "outline"} size="sm" onClick={() => setShowLabels((v) => !v)}>
+              <Tag className="mr-1 h-4 w-4" /> 数据标签
+            </Button>
+            <Button variant={showDevices ? "default" : "outline"} size="sm" onClick={() => setShowDevices((v) => !v)}>
+              <Boxes className="mr-1 h-4 w-4" /> 设备标签
+            </Button>
+            <Button variant={autoRotate ? "default" : "outline"} size="sm" onClick={() => setAutoRotate((v) => !v)}>
+              <RotateCw className="mr-1 h-4 w-4" /> 自动巡游
+            </Button>
+            <Button variant={night ? "default" : "outline"} size="sm" onClick={() => setNight((v) => !v)}>
+              <Moon className="mr-1 h-4 w-4" /> 夜间模式
+            </Button>
+            <Button variant={xray ? "default" : "outline"} size="sm" onClick={() => setXray((v) => !v)}>
+              <ScanEye className="mr-1 h-4 w-4" /> 窑内透视
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => window.location.reload()}>
+              <RefreshCw className="mr-1 h-4 w-4" /> 刷新
+            </Button>
+          </div>
+        )}
       </div>
 
-      {/* 相机机位预设：全景 / 窑头特写 / 窑尾特写 / 烟气处理 */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-xs text-muted-foreground">机位</span>
-        {Object.entries(VIEW_PRESETS).map(([k, p]) => (
+      {/* 场景切换：生产场景 + 行业示范（语义分层：实测 / 示范） */}
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card/60 px-3 py-2">
+        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs text-muted-foreground">场景</span>
+        <Button
+          size="sm"
+          variant={!activeScene ? "default" : "outline"}
+          className="h-7 px-2.5 text-xs"
+          onClick={() => switchScene(null)}
+        >
+          1号挥发窑
+          <span className={`ml-1 rounded px-1 text-[9px] leading-none ${!activeScene ? "bg-white/20" : "bg-teal-600/10 text-teal-700"}`}>
+            实测
+          </span>
+        </Button>
+        <span className="mx-1 h-4 w-px bg-border" />
+        <span className="text-xs text-muted-foreground/70">行业示范</span>
+        {SCENES.map((s) => (
           <Button
-            key={k}
+            key={s.id}
             size="sm"
-            variant={view?.preset === p ? "default" : "outline"}
+            variant={activeScene?.id === s.id ? "default" : "outline"}
             className="h-7 px-2.5 text-xs"
-            onClick={() => setView({ key: Date.now(), preset: p })}
+            onClick={() => switchScene(s.id)}
           >
-            {p.name}
+            {SCENE_SHORT[s.id] ?? s.name}
+            <span className={`ml-1 rounded px-1 text-[9px] leading-none ${activeScene?.id === s.id ? "bg-white/20" : "bg-amber-600/10 text-amber-700"}`}>
+              示范
+            </span>
           </Button>
         ))}
-        <span className="ml-2 text-xs text-muted-foreground/70">
-          点击场景中 上料皮带 / 球团仓 / 给料圆盘 / 窑头罩 / 水淬池 / 余热锅炉 / 电收尘 / 脱硫塔 / 引风机
-          / 烟囱 / 筒体分段 查看详情
-        </span>
+        {activeScene && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto h-7 px-2 text-xs text-muted-foreground"
+            onClick={() => router.push(`/scenarios/${activeScene.id}`)}
+          >
+            <ExternalLink className="mr-1 h-3 w-3" />
+            打开场景工作台
+          </Button>
+        )}
       </div>
 
-      {/* 三维画布 + 实时遥测面板 */}
+      {/* 挥发窑机位预设（仅生产场景） */}
+      {!activeScene && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs text-muted-foreground">机位</span>
+          {Object.entries(VIEW_PRESETS).map(([k, p]) => (
+            <Button
+              key={k}
+              size="sm"
+              variant={view?.preset === p ? "default" : "outline"}
+              className="h-7 px-2.5 text-xs"
+              onClick={() => setView({ key: Date.now(), preset: p })}
+            >
+              {p.name}
+            </Button>
+          ))}
+          <span className="ml-2 text-xs text-muted-foreground/70">
+            点击场景中 上料皮带 / 球团仓 / 给料圆盘 / 窑头罩 / 水淬池 / 余热锅炉 / 电收尘 / 脱硫塔 / 引风机
+            / 烟囱 / 筒体分段 查看详情
+          </span>
+        </div>
+      )}
+
+      {/* 三维画布 + 右侧面板（生产场景=挥发窑孪生；示范场景=行业孪生） */}
       <div className="flex items-stretch gap-3">
         <div className="relative h-[calc(100vh-280px)] min-h-[520px] flex-1 overflow-hidden rounded-lg border border-border">
+          {activeScene ? (
+            <SceneViewer scene={activeScene} fullHeight />
+          ) : (
+          <>
           <KilnTwin
             telemetry={telemetry}
             showLabels={showLabels}
@@ -473,9 +625,12 @@ export default function KilnTwinPage() {
               </p>
             </div>
           )}
+          </>
+          )}
         </div>
 
-        {/* 实时遥测面板（260px，等宽字体，与三维场景共用同一份轮询数据） */}
+        {/* 右侧面板：生产场景 = 实时遥测；示范场景 = 工艺参数与设备台账 */}
+        {!activeScene ? (
         <aside className="flex w-[260px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
           <div className="flex items-center justify-between border-b border-border px-3 py-2">
             <div className="flex items-center gap-1.5">
@@ -526,15 +681,80 @@ export default function KilnTwinPage() {
             </p>
           </div>
         </aside>
+        ) : (
+        <aside className="flex w-[260px] shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+          <div className="flex items-center justify-between border-b border-border px-3 py-2">
+            <div className="flex items-center gap-1.5">
+              <Activity className="h-3.5 w-3.5 text-amber-600" />
+              <span className="text-xs font-semibold">示范参数</span>
+            </div>
+            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              模拟
+            </span>
+          </div>
+          <div className="flex-1 divide-y divide-border/70 overflow-auto">
+            {sceneParamRows(activeScene).length > 0 ? (
+              sceneParamRows(activeScene).map((r) => (
+                <div key={r.label} className="flex items-center justify-between gap-2 px-3 py-[7px]">
+                  <p className="truncate text-xs text-muted-foreground">{r.label}</p>
+                  <p className="font-mono text-sm font-semibold tabular-nums text-teal-700">
+                    {r.value}
+                    <span className="ml-0.5 text-[10px] font-normal text-slate-400">{r.unit}</span>
+                  </p>
+                </div>
+              ))
+            ) : (
+              <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+                场景建设中 · 关键参数未接入
+              </div>
+            )}
+            {activeScene.equipment && activeScene.equipment.length > 0 && (
+              <div>
+                <p className="sticky top-0 z-[1] bg-card/95 px-3 py-1 font-cyber text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground backdrop-blur">
+                  设备台账
+                </p>
+                {activeScene.equipment.map((eq) => (
+                  <div key={eq.name} className="flex items-center justify-between gap-2 px-3 py-[7px]">
+                    <div className="flex min-w-0 items-center gap-1.5">
+                      <span
+                        className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                          eq.status === "运行正常" ? "bg-teal-500" : "bg-amber-500"
+                        }`}
+                      />
+                      <p className="truncate text-xs text-muted-foreground">{eq.name}</p>
+                    </div>
+                    <p className="font-mono text-xs font-semibold tabular-nums text-slate-500">
+                      {eq.efficiency}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="border-t border-border px-3 py-1.5">
+            <p className="text-[9px] text-muted-foreground/70">
+              数据来源：行业示范模拟数据 · 不接入数据基座
+            </p>
+          </div>
+        </aside>
+        )}
       </div>
 
-      <p className="text-xs text-muted-foreground">
-        操作：鼠标左键旋转 / 右键平移 / Ctrl+滚轮缩放。筒体颜色=轴向温度场（暗红→亮黄，右侧色带图例）；
-        转速随主电机频率、料流与窑内物料推移速度随给料频率、火焰随窑头温度实时变化；主传动小齿轮与筒体反向联动，
-        皮带料流与捞渣机随给料频率、锅炉安全阀蒸汽随锅筒压力、烟囱烟气与烟气流向粒子随风机阀开度；
-        电收尘集灰螺旋连续卸灰，烟气经 余热锅炉→电收尘→脱硫塔→引风机→烟囱 全链路呈现；
-        开启「窑内透视」可观察物料自窑尾向窑头推移；夜间模式下照明灯塔与烟囱航空障碍灯点亮。
-      </p>
+      {activeScene ? (
+        <p className="text-xs text-muted-foreground">
+          示范场景操作：鼠标左键旋转 / 右键平移 / 滚轮缩放；画布右上角可切换参数标注、设备名称与自动巡游；
+          点击场景设备查看工艺详情。行业示范用于展示平台跨行业孪生能力，生产实测请切换回「1号挥发窑」。
+        </p>
+      ) : (
+        <p className="text-xs text-muted-foreground">
+          操作：鼠标左键旋转 / 右键平移 / Ctrl+滚轮缩放。筒体颜色=轴向温度场（暗红→亮黄，右侧色带图例）；
+          转速随主电机频率、料流与窑内物料推移速度随给料频率、火焰随窑头温度实时变化；主传动小齿轮与筒体反向联动，
+          皮带料流与捞渣机随给料频率、锅炉安全阀蒸汽随锅筒压力、烟囱烟气与烟气流向粒子随风机阀开度；
+          电收尘集灰螺旋连续卸灰，烟气经 余热锅炉→电收尘→脱硫塔→引风机→烟囱 全链路呈现；
+          开启「窑内透视」可观察物料自窑尾向窑头推移；夜间模式下照明灯塔与烟囱航空障碍灯点亮。
+        </p>
+      )}
     </div>
   );
 }

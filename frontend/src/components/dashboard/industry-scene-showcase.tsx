@@ -58,8 +58,11 @@ function SceneCard({ scene }: { scene: Scene }) {
           {statusBadge.label}
         </NeonBadge>
       </div>
-      <h3 className="line-clamp-1 text-sm font-semibold tracking-tight text-foreground">
+      <h3 className="line-clamp-1 flex items-center gap-1.5 text-sm font-semibold tracking-tight text-foreground">
         {scene.name}
+        <span className="shrink-0 rounded bg-amber-600/10 px-1.5 py-0.5 text-[9px] font-normal text-amber-700">
+          示范
+        </span>
       </h3>
       <p className="mt-1 line-clamp-2 min-h-[2.5rem] text-xs text-muted-foreground">
         {scene.desc}
@@ -91,17 +94,28 @@ function SceneCard({ scene }: { scene: Scene }) {
         </div>
       </div>
 
-      <div className="mt-3 flex items-center justify-between text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1.5">
+      <div className="mt-3 flex items-center justify-between text-[11px]">
+        <span className="flex items-center gap-1.5 text-muted-foreground">
           <span
             className="inline-block h-1.5 w-1.5 rounded-full bg-primary animate-glow-blink"
-           
+
           />
           {scene.location}
         </span>
-        <span className="flex translate-x-1 items-center gap-0.5 text-primary opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100">
-          查看详情
-          <ArrowRight className="h-3 w-3" />
+        <span className="flex items-center gap-1">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(`/cockpit/twin?scene=${scene.id}`);
+            }}
+            className="rounded border border-border px-1.5 py-0.5 text-[10px] text-muted-foreground transition hover:border-teal-600/40 hover:text-teal-700"
+          >
+            打开孪生
+          </button>
+          <span className="flex items-center gap-0.5 text-primary opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100">
+            详情
+            <ArrowRight className="h-3 w-3" />
+          </span>
         </span>
       </div>
     </div>
@@ -127,6 +141,9 @@ export function IndustrySceneShowcase() {
           <h2 className="text-base font-semibold tracking-tight text-foreground">
             低碳运行场景
           </h2>
+          <span className="text-xs text-muted-foreground">
+            1 个生产场景（实测数据）· {SCENES.length} 个行业示范场景（模拟数据）
+          </span>
           <span className="font-cyber rounded border border-primary/30 bg-primary/5 px-2 py-0.5 text-[10px] uppercase tracking-wider text-primary">
             Industry Scenes
           </span>
@@ -154,6 +171,34 @@ export function IndustrySceneShowcase() {
 
       {/* 按行业分组 */}
       <div className="space-y-5">
+        {/* 生产场景主卡：1号挥发窑（实测数据 · 数字孪生中心主场景） */}
+        <div className="flex flex-col gap-4 rounded-xl border border-teal-600/30 bg-gradient-to-r from-teal-600/10 via-teal-600/5 to-transparent p-5 sm:flex-row sm:items-center">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-teal-600/15 text-xl font-semibold text-teal-700">
+            窑
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h3 className="text-sm font-semibold tracking-tight text-foreground">
+                1号挥发窑 · 生产实测
+              </h3>
+              <span className="rounded bg-teal-600/10 px-1.5 py-0.5 text-[9px] font-medium text-teal-700">
+                实时数据 · 5s 刷新
+              </span>
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[9px] text-muted-foreground">
+                数字孪生中心主场景
+              </span>
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              上料→给料→焙烧→水淬→余热回收→收尘→脱硫→引风→排放 全流程三维孪生，10 类关键设备可点击，
+              数据来自数据基座现场点位
+            </p>
+          </div>
+          <Button size="sm" onClick={() => router.push("/cockpit/twin")}>
+            打开数字孪生
+            <ArrowRight className="ml-1 h-3.5 w-3.5" />
+          </Button>
+        </div>
+
         {INDUSTRY_GROUPS.map((group) => {
           const groupScenes = SCENES.filter((s) => group.sceneIds.includes(s.id));
           const theme = INDUSTRY_THEMES[group.name];
