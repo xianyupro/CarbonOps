@@ -303,9 +303,13 @@ function KpiWidget() {
   );
 }
 
-/** 点位实时值 */
+/** 点位实时值（数组型点位显示曲线统计） */
 function PointWidget({ pointId }: { pointId?: number }) {
-  const [value, setValue] = React.useState<{ value: number | null; ts: string | null } | null>(null);
+  const [state, setState] = React.useState<{
+    value: number | null;
+    ts: string | null;
+    curve?: { count: number; peak: number } | null;
+  } | null>(null);
   const [name, setName] = React.useState("");
   React.useEffect(() => {
     if (!pointId) return;
@@ -313,7 +317,21 @@ function PointWidget({ pointId }: { pointId?: number }) {
       try {
         const rows = await api.data.latest([pointId!]);
         const r = rows[0];
-        if (r) setValue({ value: r.value, ts: r.timestamp });
+        let curve: { count: number; peak: number } | null = null;
+        if (r?.valueText) {
+          try {
+            const arr = JSON.parse(r.valueText) as [number, number][];
+            if (Array.isArray(arr) && arr.length > 0) {
+              curve = {
+                count: arr.length,
+                peak: Math.max(...arr.map((x) => Number(x[1]) || 0)),
+              };
+            }
+          } catch {
+            /* 非法曲线忽略 */
+          }
+        }
+        if (r) setState({ value: r.value, ts: r.timestamp, curve });
         api.dataPoints.list({ pageSize: 300 }).then((res) => {
           const p = res.list.find((x) => x.id === pointId);
           if (p) setName(p.name);
@@ -327,13 +345,27 @@ function PointWidget({ pointId }: { pointId?: number }) {
     return () => clearInterval(t);
   }, [pointId]);
   if (!pointId) return <Hint text="请在右上角选择点位" />;
+  if (state?.curve) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center">
+        <p className="truncate text-[11px] text-muted-foreground">{name || `点位 #${pointId}`}</p>
+        <p className="font-cyber text-2xl font-semibold tabular-nums text-teal-700">
+          {state.curve.peak.toFixed(1)}
+          <span className="ml-0.5 text-[10px] font-normal text-slate-400">℃ 峰值</span>
+        </p>
+        <p className="font-cyber text-[10px] text-muted-foreground">
+          温度场曲线 · {state.curve.count} 点 · {state.ts?.slice(5, 16) ?? ""}
+        </p>
+      </div>
+    );
+  }
   return (
     <div className="flex h-full flex-col items-center justify-center">
       <p className="truncate text-[11px] text-muted-foreground">{name || `点位 #${pointId}`}</p>
-      <p className="text-3xl font-semibold tabular-nums text-teal-700">
-        {value?.value != null ? value.value.toFixed(2) : "--"}
+      <p className="font-cyber text-3xl font-semibold tabular-nums text-teal-700">
+        {state?.value != null ? state.value.toFixed(2) : "--"}
       </p>
-      <p className="text-[10px] text-muted-foreground">{value?.ts ?? ""}</p>
+      <p className="font-cyber text-[10px] text-muted-foreground">{state?.ts ?? ""}</p>
     </div>
   );
 }

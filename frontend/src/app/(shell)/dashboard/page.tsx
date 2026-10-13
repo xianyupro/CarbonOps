@@ -149,7 +149,7 @@ function StatCard({
           {loading ? (
             <Skeleton className="mt-2 h-7 w-24" />
           ) : (
-            <p className="mt-1 font-cyber text-2xl font-bold tabular-nums tracking-tight text-gradient-cool">
+            <p className="mt-1 font-cyber text-2xl font-bold tabular-nums tracking-tight text-primary">
               {value === null ? "—" : formatNumber(value)}
             </p>
           )}
@@ -306,22 +306,22 @@ function WelcomeBanner({
         <div className="flex items-start gap-4">
           <div className="relative">
             <span aria-hidden className="absolute -inset-1 rounded-2xl bg-primary/25 blur-md animate-logo-pulse" />
-            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-primary text-white shadow-glow-cyan">
+            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
               <Sparkles className="h-7 w-7" strokeWidth={2.2} />
             </div>
           </div>
           <div>
             <div className="mb-1 flex items-center gap-2">
-              <span className="font-cyber rounded border border-success/40 bg-success/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-success shadow-[0_0_10px_hsl(150_100%_50%_/_0.25)]">
+              <span className="font-cyber rounded-sm border border-success/40 bg-success/10 px-2 py-0.5 text-[10px] uppercase tracking-wider text-success">
                 {roleLabel}
               </span>
               <span className="text-xs text-muted-foreground">
                 实时碳排放监测
               </span>
-              <span className="ml-1 h-1.5 w-1.5 rounded-full bg-success animate-glow-blink" style={{ boxShadow: "0 0 8px hsl(150 100% 50%)" }} />
+              <span className="ml-1 h-1.5 w-1.5 rounded-full bg-success" />
             </div>
             <h2 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
-              欢迎回来，<span className="text-gradient-primary text-glow-cyan">{userName}</span>
+              欢迎回来，<span className="text-primary">{userName}</span>
             </h2>
             <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
               {trend

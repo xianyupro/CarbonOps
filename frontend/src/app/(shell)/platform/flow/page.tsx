@@ -255,8 +255,15 @@ export default function FlowEditorPage() {
       background: { color: "#f8fafc" },
       grid: { size: 20, type: "dot", args: { color: "#cbd5e1", thickness: 1 } },
       // 右键拖动画布；滚轮直接缩放（工业编辑器惯例）
-      panning: { enabled: true, eventTypes: ["rightMouseDown", "mouseWheel"] },
-      mousewheel: { zoomAtMousePosition: true, minScale: 0.3, maxScale: 2.5, modifiers: [] },
+      panning: { enabled: true, eventTypes: ["rightMouseDown"] },
+      // X6 v2：mousewheel 内置组件必须显式 enabled 才会激活；modifiers=[] 表示无需修饰键
+      mousewheel: {
+        enabled: true,
+        zoomAtMousePosition: true,
+        minScale: 0.3,
+        maxScale: 2.5,
+        modifiers: [],
+      },
       connecting: {
         allowBlank: false,
         allowLoop: false,

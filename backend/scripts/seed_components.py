@@ -49,7 +49,20 @@ BUILTIN_COMPONENTS: list[dict] = [
         runtime="builtin", ref_code="process_sim", ui_config={"color": "#dc2626"},
     ),
     dict(
-        code="proc.kiln_cool", name="③ 烟气冷却", category="工艺工序", kind="single",
+        code="proc.kiln_quench", name="③ 窑渣水淬", category="工艺工序", kind="single",
+        description="炉渣水淬粒化：急冷成粒化渣外运，余热以蒸汽形式回收",
+        params_schema=[
+            {"key": "waterFlow", "label": "水淬水量", "dtype": "number", "default": 40, "unit": "m³/h"},
+        ],
+        inputs=[{"key": "slag", "label": "炉渣工件", "dtype": "workpiece"}],
+        outputs=[
+            {"key": "quenchedSlag", "label": "粒化渣工件", "dtype": "workpiece"},
+            {"key": "steam", "label": "回收蒸汽量", "dtype": "number"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#0284c7"},
+    ),
+    dict(
+        code="proc.kiln_cool", name="④ 烟气冷却", category="工艺工序", kind="single",
         description="高温烟气经余热锅炉降温并回收余热",
         params_schema=[],
         inputs=[{"key": "gas", "label": "高温烟气", "dtype": "any"}],
@@ -60,7 +73,7 @@ BUILTIN_COMPONENTS: list[dict] = [
         runtime="builtin", ref_code="process_sim", ui_config={"color": "#0891b2"},
     ),
     dict(
-        code="proc.kiln_dust", name="④ 收尘工序", category="工艺工序", kind="single",
+        code="proc.kiln_dust", name="⑤ 收尘工序", category="工艺工序", kind="single",
         description="电收尘器捕集烟尘：富集铅锌镉等有价金属",
         params_schema=[
             {"key": "efficiency", "label": "收尘效率", "dtype": "number", "default": 0.985},
@@ -73,7 +86,33 @@ BUILTIN_COMPONENTS: list[dict] = [
         runtime="builtin", ref_code="process_sim", ui_config={"color": "#7c3aed"},
     ),
     dict(
-        code="proc.kiln_stack", name="⑤ 达标排放", category="工艺工序", kind="single",
+        code="proc.kiln_desulf", name="⑥ 脱硫净化", category="工艺工序", kind="single",
+        description="双碱法脱硫塔：脱除 SO₂ 与氟化物，为达标排放提供保障",
+        params_schema=[
+            {"key": "efficiency", "label": "脱硫效率", "dtype": "number", "default": 0.92},
+        ],
+        inputs=[{"key": "cleanGas", "label": "净化烟气", "dtype": "any"}],
+        outputs=[
+            {"key": "cleanGas", "label": "脱硫后烟气", "dtype": "any"},
+            {"key": "so2Removed", "label": "SO₂ 脱除量", "dtype": "number"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#059669"},
+    ),
+    dict(
+        code="proc.kiln_idfan", name="⑦ 引风机", category="工艺工序", kind="single",
+        description="增压引风机：维持窑内微负压并将脱硫后烟气输送至烟囱，变频调节",
+        params_schema=[
+            {"key": "freq", "label": "风机频率", "dtype": "number", "default": 35, "unit": "Hz"},
+        ],
+        inputs=[{"key": "cleanGas", "label": "脱硫后烟气", "dtype": "any"}],
+        outputs=[
+            {"key": "cleanGas", "label": "排放烟气", "dtype": "any"},
+            {"key": "draft", "label": "系统负压", "dtype": "number"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#4f46e5"},
+    ),
+    dict(
+        code="proc.kiln_stack", name="⑧ 达标排放", category="工艺工序", kind="single",
         description="净化烟气经增压风机排放，CO/含尘浓度在线监测",
         params_schema=[],
         inputs=[
@@ -84,6 +123,34 @@ BUILTIN_COMPONENTS: list[dict] = [
             {"key": "compliant", "label": "是否达标", "dtype": "bool"},
         ],
         runtime="builtin", ref_code="process_sim", ui_config={"color": "#16a34a"},
+    ),
+    # ----- 辅助工序（不占主流程序号） -----
+    dict(
+        code="proc.kiln_combust", name="燃烧配风", category="工艺工序", kind="single",
+        description="窑头燃烧器：燃料/空气配比决定热负荷，直接影响窑头温度",
+        params_schema=[
+            {"key": "fuelFlow", "label": "燃料流量", "dtype": "number", "default": 1200, "unit": "m³/h"},
+            {"key": "airRatio", "label": "空燃比", "dtype": "number", "default": 1.15},
+        ],
+        inputs=[{"key": "tailTemp", "label": "窑尾温度", "dtype": "number"}],
+        outputs=[
+            {"key": "heatLoad", "label": "热负荷", "dtype": "number"},
+            {"key": "burnerGas", "label": "助燃烟气", "dtype": "any"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#ea580c"},
+    ),
+    dict(
+        code="proc.kiln_drive", name="主传动", category="工艺工序", kind="single",
+        description="主电机经大齿圈驱动筒体旋转：频率决定窑速与物料停留时间",
+        params_schema=[
+            {"key": "motorFreq", "label": "主电机频率", "dtype": "number", "default": 8, "unit": "Hz"},
+        ],
+        inputs=[{"key": "throughput", "label": "入窑量", "dtype": "number"}],
+        outputs=[
+            {"key": "kilnSpeed", "label": "筒体转速", "dtype": "number"},
+            {"key": "power", "label": "主电机功率", "dtype": "number"},
+        ],
+        runtime="builtin", ref_code="process_sim", ui_config={"color": "#334155"},
     ),
     # ===== 工件算子（物料在流程中的形态） =====
     dict(

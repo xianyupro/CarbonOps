@@ -7,12 +7,13 @@
 import * as React from "react";
 import dynamic from "next/dynamic";
 import { toast } from "sonner";
-import { Loader2, Moon, RefreshCw, ScanEye, Tag } from "lucide-react";
+import { Loader2, Moon, RefreshCw, RotateCw, ScanEye, Boxes, Tag } from "lucide-react";
 
 import { api } from "@/lib/api";
 import type { DataPoint } from "@/types/api";
 import { Button } from "@/components/ui/button";
-import type { KilnTelemetry } from "@/components/cockpit/kiln-twin";
+import { VIEW_PRESETS } from "@/components/cockpit/kiln-twin";
+import type { KilnTelemetry, ViewPreset } from "@/components/cockpit/kiln-twin";
 
 const KilnTwin = dynamic(() => import("@/components/cockpit/kiln-twin"), {
   ssr: false,
@@ -46,8 +47,11 @@ export default function KilnTwinPage() {
   const [telemetry, setTelemetry] = React.useState<KilnTelemetry>(EMPTY);
   const [loading, setLoading] = React.useState(true);
   const [showLabels, setShowLabels] = React.useState(true);
+  const [showDevices, setShowDevices] = React.useState(true);
   const [night, setNight] = React.useState(false);
   const [xray, setXray] = React.useState(false);
+  const [autoRotate, setAutoRotate] = React.useState(false);
+  const [view, setView] = React.useState<{ key: number; preset: ViewPreset } | null>(null);
   const [segment, setSegment] = React.useState<{ index: number; temp: number } | null>(null);
   const pointIdsRef = React.useRef<Partial<Record<keyof KilnTelemetry, number>>>({});
 
@@ -134,12 +138,18 @@ export default function KilnTwinPage() {
         <div>
           <h1 className="text-xl font-semibold">挥发窑数字孪生</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            1号回转挥发窑三维仿真 · 转速/料流/温度场由现场实时数据驱动（5s 刷新）
+            1号回转挥发窑三维仿真 · 全流程设备（给料→焙烧→水淬→冷却→收尘→脱硫→引风→排放）由现场实时数据驱动（5s 刷新）
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant={showLabels ? "default" : "outline"} size="sm" onClick={() => setShowLabels((v) => !v)}>
             <Tag className="mr-1 h-4 w-4" /> 数据标签
+          </Button>
+          <Button variant={showDevices ? "default" : "outline"} size="sm" onClick={() => setShowDevices((v) => !v)}>
+            <Boxes className="mr-1 h-4 w-4" /> 设备标签
+          </Button>
+          <Button variant={autoRotate ? "default" : "outline"} size="sm" onClick={() => setAutoRotate((v) => !v)}>
+            <RotateCw className="mr-1 h-4 w-4" /> 自动巡游
           </Button>
           <Button variant={night ? "default" : "outline"} size="sm" onClick={() => setNight((v) => !v)}>
             <Moon className="mr-1 h-4 w-4" /> 夜间模式
@@ -166,15 +176,47 @@ export default function KilnTwinPage() {
         ))}
       </div>
 
+      {/* 相机预设视角 */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-muted-foreground">视角</span>
+        {Object.entries(VIEW_PRESETS).map(([k, p]) => (
+          <Button
+            key={k}
+            size="sm"
+            variant={view?.preset === p ? "default" : "outline"}
+            className="h-7 px-2.5 text-xs"
+            onClick={() => setView({ key: Date.now(), preset: p })}
+          >
+            {p.name}
+          </Button>
+        ))}
+      </div>
+
       {/* 三维画布 */}
-      <div className="relative h-[calc(100vh-330px)] min-h-[480px] overflow-hidden rounded-lg border border-border">
+      <div className="relative h-[calc(100vh-368px)] min-h-[480px] overflow-hidden rounded-lg border border-border">
         <KilnTwin
           telemetry={telemetry}
           showLabels={showLabels}
+          showDevices={showDevices}
           night={night}
           xray={xray}
+          autoRotate={autoRotate}
+          view={view}
           onSegmentClick={(index, temp) => setSegment({ index, temp })}
         />
+        {/* 温度场图例 */}
+        <div className="absolute bottom-3 left-3 z-10 rounded-md border border-border bg-card/90 px-2.5 py-1.5 shadow-sm backdrop-blur">
+          <p className="text-[10px] text-muted-foreground">筒体温度场（&gt;1050℃ 红环告警）</p>
+          <div
+            className="mt-1 h-2 w-44 rounded-full"
+            style={{ background: "linear-gradient(90deg,#521004,#b45309 55%,#f6d566)" }}
+          />
+          <div className="mt-0.5 flex w-44 justify-between text-[9px] text-muted-foreground">
+            <span>500℃</span>
+            <span>800℃</span>
+            <span>1100℃</span>
+          </div>
+        </div>
         {segment && (
           <div className="absolute right-3 top-3 w-56 rounded-lg border border-border bg-card/95 p-3 shadow-lg backdrop-blur">
             <div className="flex items-center justify-between">
@@ -202,7 +244,8 @@ export default function KilnTwinPage() {
       </div>
       <p className="text-xs text-muted-foreground">
         操作：鼠标左键旋转 / 右键平移 / Ctrl+滚轮缩放。筒体颜色=轴向温度场（暗红→亮黄）；
-        转速随主电机频率、料流速度随给料频率、火焰随窑头温度实时变化。
+        转速随主电机频率、料流速度随给料频率、火焰随窑头温度实时变化；主传动小齿轮与筒体反向联动，
+        水淬池蒸汽速率随给料频率，引风机叶轮常转，烟气经 余热锅炉→电收尘→脱硫塔→引风机→烟囱 全链路呈现。
       </p>
     </div>
   );

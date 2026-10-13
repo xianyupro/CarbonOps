@@ -94,7 +94,12 @@ def list_components(
         grouped.setdefault(c.category, []).append(
             ComponentOut.model_validate(c).model_dump(by_alias=True, mode="json")
         )
-    return ok({"groups": grouped, "variables": FLOW_VARIABLES})
+    # 领域组件（工艺工序/工件算子）置顶，通用组随后
+    order = ["工艺工序", "工件算子", "数据输入", "分析算子", "元模型", "逻辑控制", "输出展示"]
+    groups = {k: grouped[k] for k in order if k in grouped}
+    for k, v in grouped.items():
+        groups.setdefault(k, v)
+    return ok({"groups": groups, "variables": FLOW_VARIABLES})
 
 
 @router.get("/components/metamodel-options")
