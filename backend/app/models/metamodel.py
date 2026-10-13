@@ -70,6 +70,14 @@ class Metamodel(Base):
     # ---------- 七、验证与确认 ----------
     validation_baseline: Mapped[str | None] = mapped_column(Text, nullable=True)   # 基准/交叉
     validation_limits: Mapped[str | None] = mapped_column(Text, nullable=True)     # 极限/确认
+    validation_metrics: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # 量化验证指标 [{"metric": "RMSE", "value": 4.2, "unit": "℃", "dataset": "...", "note": "..."}]
+    uncertainty: Mapped[str | None] = mapped_column(Text, nullable=True)           # 不确定度/置信水平
+    training_data: Mapped[str | None] = mapped_column(Text, nullable=True)         # 训练与验证数据来源
+
+    # ---------- 八、参考文献 ----------
+    references: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    # [{"authors": "...", "title": "...", "venue": "...", "year": 2019, "doi": "10.xxx/..."}]
 
     # ---------- 管理字段 ----------
     status: Mapped[str] = mapped_column(String(16), default="DEVELOPING", index=True)

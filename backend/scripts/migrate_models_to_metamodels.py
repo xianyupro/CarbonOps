@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from sqlalchemy import select  # noqa: E402
 
 from app.db.session import SessionLocal  # noqa: E402
+from app.mock.metamodel_scholar import apply_scholar_content  # noqa: E402
 from app.models.auth import User  # noqa: E402
 from app.models.metamodel import Metamodel, MetamodelVersion  # noqa: E402
 from app.models.model_lib import ModelRegistry, ModelVersion  # noqa: E402
@@ -168,6 +169,8 @@ def main() -> None:
                 legacy_model_id=m.id,
                 owner_id=admin.id if admin else None,
             )
+            # 学术内容库命中则覆盖为精品学术内容（公式/变量表/V&V/文献）
+            scholar_applied = apply_scholar_content(mm)
             db.add(mm)
             db.flush()
 
@@ -185,6 +188,7 @@ def main() -> None:
                         f"迁移自旧模型库 {m.code}"
                         + (f"（原版本 {legacy_ver.version_no}）" if legacy_ver else "")
                         + "；按元模型模板模拟补全 8 节登记信息"
+                        + ("；学术内容库充实（关系式/变量表/V&V/文献）" if scholar_applied else "")
                     ),
                     snapshot=MetamodelOut.model_validate(mm).model_dump(by_alias=True, mode="json"),
                     created_by="migrate_script",

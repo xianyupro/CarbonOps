@@ -26,6 +26,22 @@ class IoParam(BaseModel):
     sourceMeaning: str = ""         # 来源 / 含义
 
 
+class ReferenceItem(BaseModel):
+    authors: str = ""
+    title: str = ""
+    venue: str = ""
+    year: Optional[int] = None
+    doi: Optional[str] = None
+
+
+class ValidationMetric(BaseModel):
+    metric: str                     # RMSE / MAE / R2 / MAPE ...
+    value: float
+    unit: Optional[str] = None
+    dataset: Optional[str] = None   # 验证数据集说明
+    note: Optional[str] = None
+
+
 class MetamodelCreate(BaseModel):
     name: str
     modelType: str                                   # MECHANISM/DATA_MODEL/ALGORITHM/KNOWLEDGE_RULE
@@ -56,6 +72,10 @@ class MetamodelCreate(BaseModel):
     deployCombination: Optional[str] = None
     validationBaseline: Optional[str] = None
     validationLimits: Optional[str] = None
+    validationMetrics: Optional[List[ValidationMetric]] = None
+    uncertainty: Optional[str] = None
+    trainingData: Optional[str] = None
+    references: Optional[List[ReferenceItem]] = None
     status: str = "DEVELOPING"
     industry: str = "通用"
     processStage: Optional[str] = None
@@ -94,6 +114,10 @@ class MetamodelUpdate(BaseModel):
     deployCombination: Optional[str] = None
     validationBaseline: Optional[str] = None
     validationLimits: Optional[str] = None
+    validationMetrics: Optional[List[ValidationMetric]] = None
+    uncertainty: Optional[str] = None
+    trainingData: Optional[str] = None
+    references: Optional[List[ReferenceItem]] = None
     status: Optional[str] = None
     industry: Optional[str] = None
     processStage: Optional[str] = None
@@ -137,6 +161,10 @@ class MetamodelOut(BaseModel):
     deploy_combination: Optional[str] = None
     validation_baseline: Optional[str] = None
     validation_limits: Optional[str] = None
+    validation_metrics: Optional[list] = None
+    uncertainty: Optional[str] = None
+    training_data: Optional[str] = None
+    references: Optional[list] = None
     status: str
     industry: str
     process_stage: Optional[str] = None

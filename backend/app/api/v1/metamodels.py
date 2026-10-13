@@ -16,11 +16,13 @@ from app.core.exceptions import BizError, NotFoundError
 from app.core.response import ok
 from app.db.session import get_db
 from app.models.auth import User
+from app.models.kg import KgEdge, KgLink, KgNode
 from app.models.metamodel import (
     MODEL_TYPE_LABELS,
     Metamodel,
     MetamodelVersion,
 )
+from app.schemas.kg import KgEdgeOut, KgNodeOut
 from app.schemas.metamodel import (
     FacetBucket,
     MetamodelCreate,
@@ -176,6 +178,8 @@ def export_metamodels(
         ("sceneDomain", "场景/有效域"), ("assumptions", "假设/边界"),
         ("limitsPrecision", "限制/精度"), ("methodFlow", "方法/流程"),
         ("entryInterface", "入口/响应"), ("validationBaseline", "基准/交叉"),
+        ("validationMetrics", "验证指标"), ("uncertainty", "不确定度"),
+        ("trainingData", "训练/验证数据"), ("references", "参考文献"),
     ]
     ws.append([c[1] for c in flat_cols])
     for m in data:
@@ -218,7 +222,7 @@ def import_metamodels(
         fields = {
             k: v
             for k, v in item.items()
-            if k not in ("metaCode", "initialChangelog", "coreRelations", "ioParams", "id", "createdAt", "updatedAt", "versions")
+            if k not in ("metaCode", "initialChangelog", "id", "createdAt", "updatedAt", "versions")
             and v is not None
         }
         if existing:
@@ -262,12 +266,18 @@ def create_metamodel(
     m = Metamodel(meta_code=meta_code)
     _apply_payload(
         m,
-        payload.model_dump(exclude={"metaCode", "coreRelations", "ioParams", "initialChangelog"}),
+        payload.model_dump(
+            exclude={"metaCode", "coreRelations", "ioParams", "references", "validationMetrics", "initialChangelog"}
+        ),
     )
     if payload.coreRelations is not None:
         m.core_relations = [r.model_dump() for r in payload.coreRelations]
     if payload.ioParams is not None:
         m.io_params = [p.model_dump() for p in payload.ioParams]
+    if payload.references is not None:
+        m.references = [r.model_dump() for r in payload.references]
+    if payload.validationMetrics is not None:
+        m.validation_metrics = [v.model_dump() for v in payload.validationMetrics]
     db.add(m)
     db.flush()
     db.add(
@@ -301,6 +311,51 @@ def get_metamodel(
     return ok(data)
 
 
+@router.get("/{mm_id}/kg-neighborhood")
+def kg_neighborhood(
+    mm_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(require_permission("model:read")),
+):
+    """元模型关联图谱一跳邻域（kg_links/ref 反查，替代前端全量拉图）。"""
+    m = db.get(Metamodel, mm_id)
+    if not m:
+        raise NotFoundError("元模型不存在")
+    center_ids = set(
+        db.execute(
+            select(KgLink.node_id).where(KgLink.link_type == "METAMODEL", KgLink.link_id == mm_id)
+        ).scalars().all()
+    )
+    center_ids.update(
+        db.execute(
+            select(KgNode.id).where(KgNode.ref_type == "METAMODEL", KgNode.ref_id == mm_id)
+        ).scalars().all()
+    )
+    if not center_ids:
+        return ok({"nodes": [], "edges": [], "centerIds": []})
+    edges = (
+        db.execute(
+            select(KgEdge).where(
+                KgEdge.source_node_id.in_(center_ids) | KgEdge.target_node_id.in_(center_ids)
+            )
+        ).scalars().all()
+    )
+    node_ids = set(center_ids)
+    for e in edges:
+        node_ids.add(e.source_node_id)
+        node_ids.add(e.target_node_id)
+    nodes = (
+        db.execute(select(KgNode).where(KgNode.id.in_(node_ids))).scalars().all()
+    )
+    return ok(
+        {
+            "nodes": [KgNodeOut.model_validate(n).model_dump(by_alias=True, mode="json") for n in nodes],
+            "edges": [KgEdgeOut.model_validate(e).model_dump(by_alias=True, mode="json") for e in edges],
+            "centerIds": sorted(center_ids),
+        }
+    )
+
+
 @router.put("/{mm_id}")
 def update_metamodel(
     mm_id: int,
@@ -311,13 +366,20 @@ def update_metamodel(
     m = db.get(Metamodel, mm_id)
     if not m:
         raise NotFoundError("元模型不存在")
-    changes = payload.model_dump(exclude_unset=True, exclude={"coreRelations", "ioParams"})
+    changes = payload.model_dump(
+        exclude_unset=True,
+        exclude={"coreRelations", "ioParams", "references", "validationMetrics"},
+    )
     for k, v in changes.items():
         setattr(m, k, v)
     if payload.coreRelations is not None:
         m.core_relations = [r.model_dump() for r in payload.coreRelations]
     if payload.ioParams is not None:
         m.io_params = [p.model_dump() for p in payload.ioParams]
+    if payload.references is not None:
+        m.references = [r.model_dump() for r in payload.references]
+    if payload.validationMetrics is not None:
+        m.validation_metrics = [v.model_dump() for v in payload.validationMetrics]
     db.flush()
     # 版本号变化时自动生成新版本快照
     if payload.versionNo and payload.versionNo != m.version_no:
