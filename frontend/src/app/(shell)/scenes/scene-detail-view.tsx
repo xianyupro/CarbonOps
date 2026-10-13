@@ -195,9 +195,9 @@ export function SceneDetailView({ sceneId }: Props) {
       <div className="flex min-h-[50vh] flex-col items-center justify-center gap-3 text-center">
         <AlertCircle className="h-10 w-10 text-muted-foreground/50" />
         <div className="text-sm text-muted-foreground">场景不存在或已被删除</div>
-        <Button variant="outline" size="sm" onClick={() => router.push("/scenarios")}>
+        <Button variant="outline" size="sm" onClick={() => router.push("/dashboard")}>
           <ArrowLeft className="mr-1 h-3.5 w-3.5" />
-          返回场景列表
+          返回场景总览
         </Button>
       </div>
     );
@@ -214,7 +214,7 @@ export function SceneDetailView({ sceneId }: Props) {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push("/scenarios")}
+            onClick={() => router.push("/dashboard")}
             className="shadow-card-sm"
           >
             <ArrowLeft className="mr-1 h-3.5 w-3.5" />

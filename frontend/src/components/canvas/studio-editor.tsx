@@ -39,6 +39,8 @@ export interface StudioEditorProps {
   formName: string;
   initialPageConfig: PageConfig;
   onClose: () => void;
+  /** 自定义保存目标（如大屏 screen_configs）；提供时保存走该回调，且隐藏发布/版本功能 */
+  onSave?: (pageConfig: PageConfig) => Promise<void>;
 }
 
 export function StudioEditor({
@@ -46,6 +48,7 @@ export function StudioEditor({
   formName,
   initialPageConfig,
   onClose,
+  onSave,
 }: StudioEditorProps) {
   const loadConfig = useEditorStore((s) => s.loadConfig);
   const reset = useEditorStore((s) => s.reset);
@@ -87,9 +90,13 @@ export function StudioEditor({
   async function handleSave() {
     setSaving(true);
     try {
-      await api.forms.update(formId, {
-        pageConfig: pageConfig as unknown as Record<string, unknown>,
-      });
+      if (onSave) {
+        await onSave(pageConfig);
+      } else {
+        await api.forms.update(formId, {
+          pageConfig: pageConfig as unknown as Record<string, unknown>,
+        });
+      }
       clearDirty();
       toast.success("已保存");
     } catch (err) {
@@ -234,16 +241,18 @@ export function StudioEditor({
             </>
           ) : null}
 
-          <Button
-            variant="ghost"
-            size="sm"
-            className="gap-1 text-slate-600 hover:bg-muted"
-            onClick={() => setShowVersions(true)}
-            title="版本管理"
-          >
-            <History className="h-3.5 w-3.5" />
-            版本
-          </Button>
+          {!onSave ? (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-1 text-slate-600 hover:bg-muted"
+              onClick={() => setShowVersions(true)}
+              title="版本管理"
+            >
+              <History className="h-3.5 w-3.5" />
+              版本
+            </Button>
+          ) : null}
         </div>
 
         {/* 右侧：缩放 + 保存 + 发布 */}
@@ -284,18 +293,20 @@ export function StudioEditor({
             )}
             保存
           </Button>
-          <Button
-            size="sm"
-            disabled={publishing}
-            onClick={() => void handlePublish()}
-          >
-            {publishing ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <Rocket className="h-4 w-4" />
-            )}
-            发布
-          </Button>
+          {!onSave ? (
+            <Button
+              size="sm"
+              disabled={publishing}
+              onClick={() => void handlePublish()}
+            >
+              {publishing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Rocket className="h-4 w-4" />
+              )}
+              发布
+            </Button>
+          ) : null}
         </div>
       </header>
 
@@ -352,3 +363,5 @@ export function StudioEditor({
     </div>
   );
 }
+
+export default StudioEditor;

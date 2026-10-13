@@ -30,12 +30,24 @@ export interface NavGroup {
 }
 
 /**
- * CarbonOps 侧边栏 —— 一个模块一个主菜单，对齐四层递进架构：
- * ① 数据基座 → ② 元模型平台 → ③ 组件平台 → ④ 驾驶舱中心；系统管理单列。
+ * CarbonOps 侧边栏 —— 一个模块一个主菜单；驾驶舱中心为平台主入口置顶，
+ * 其余按四层递进架构排列：① 数据基座 → ② 元模型平台 → ③ 组件平台；系统管理单列。
+ * 徽标编号保留四层架构语义（数据基座①→驾驶舱④），与菜单展示顺序无关。
  * 各模块的二级功能（数据源管理、离线导入、组态开发等）在模块工作台内
  * 以子窗口/视图切换呈现，不再占用侧边栏。
  */
 export const navConfig: NavGroup[] = [
+  {
+    title: "驾驶舱中心",
+    badge: "④",
+    items: [
+      {
+        label: "驾驶舱工作台",
+        href: "/cockpit",
+        icon: LayoutDashboard,
+      },
+    ],
+  },
   {
     title: "数据基座",
     badge: "①",
@@ -70,17 +82,6 @@ export const navConfig: NavGroup[] = [
         icon: Workflow,
         permission: "orchestration:read",
         anyPermission: ["model:read"],
-      },
-    ],
-  },
-  {
-    title: "驾驶舱中心",
-    badge: "④",
-    items: [
-      {
-        label: "驾驶舱中心",
-        href: "/cockpit",
-        icon: LayoutDashboard,
       },
     ],
   },

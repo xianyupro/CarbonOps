@@ -9,8 +9,10 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, ArrowRight, Bell, Brain, CheckCircle2, Info, Loader2 } from "lucide-react";
+import { AlertTriangle, ArrowRight, Bell, Brain, CheckCircle2, Info, Loader2, Radio } from "lucide-react";
 import type { ComponentInstance } from "@/lib/canvas/schema";
+import { api } from "@/lib/api";
+import type { Alarm, DashboardOverview, TimeBucket } from "@/types/api";
 
 // ECharts 动态加载 — 使用 React.lazy + Suspense 而非 next/dynamic，避免
 // dev 模式下 ESM-only 包偶发的 chunk path 为 undefined 错误。
@@ -57,6 +59,136 @@ function EChartFallback() {
   );
 }
 
+/* ---------- 点位实时数据共享订阅层（多组件共用一次轮询） ---------- */
+
+type PointSample = {
+  value: number | null;
+  ts: string | null;
+  /** 数组型点位（如温度场曲线）解析出的统计 */
+  curve?: { count: number; peak: number } | null;
+};
+type PointListener = (s: PointSample) => void;
+
+const pointIndex = new Map<string, number>(); // 小写(name|code) → pointId
+let pointIndexPromise: Promise<Map<string, number>> | null = null;
+
+function ensurePointIndex(): Promise<Map<string, number>> {
+  if (pointIndex.size > 0) return Promise.resolve(pointIndex);
+  pointIndexPromise ??= api.dataPoints
+    .list({ pageSize: 1000 })
+    .then((res) => {
+      for (const p of res.list) {
+        pointIndex.set(p.name.toLowerCase(), p.id);
+        pointIndex.set((p.code ?? "").toLowerCase(), p.id);
+      }
+      return pointIndex;
+    })
+    .catch(() => pointIndex);
+  return pointIndexPromise;
+}
+
+const pointSamples = new Map<number, PointSample>();
+const pointSubs = new Map<number, Set<PointListener>>();
+let pointTimer: ReturnType<typeof setInterval> | null = null;
+
+async function pollSubscribedPoints() {
+  const ids = [...pointSubs.keys()];
+  if (ids.length === 0) return;
+  try {
+    const rows = await api.data.latest(ids);
+    for (const r of rows) {
+      let value = typeof r.value === "number" && Number.isFinite(r.value) ? r.value : null;
+      let curve: { count: number; peak: number } | undefined;
+      if (value == null && r.valueText) {
+        // 数组型点位（曲线）→ 取峰值
+        try {
+          const arr = JSON.parse(r.valueText) as [number, number][];
+          if (Array.isArray(arr) && arr.length > 0) {
+            curve = { count: arr.length, peak: Math.max(...arr.map((x) => Number(x[1]) || 0)) };
+            value = curve.peak;
+          }
+        } catch {
+          /* 非法曲线忽略 */
+        }
+      }
+      const sample: PointSample = { value, ts: r.timestamp, curve };
+      pointSamples.set(r.pointId, sample);
+      pointSubs.get(r.pointId)?.forEach((cb) => cb(sample));
+    }
+  } catch {
+    /* 静默重试 */
+  }
+}
+
+function subscribePointValue(pointId: number, cb: PointListener): () => void {
+  let set = pointSubs.get(pointId);
+  if (!set) {
+    set = new Set();
+    pointSubs.set(pointId, set);
+    if (pointTimer == null) pointTimer = setInterval(pollSubscribedPoints, 5000);
+    void pollSubscribedPoints();
+  }
+  set.add(cb);
+  const cached = pointSamples.get(pointId);
+  if (cached) cb(cached);
+  return () => {
+    set.delete(cb);
+    if (set.size === 0) {
+      pointSubs.delete(pointId);
+      if (pointSubs.size === 0 && pointTimer != null) {
+        clearInterval(pointTimer);
+        pointTimer = null;
+      }
+    }
+  };
+}
+
+/** point 绑定 → 解析点位（name/code→id）并订阅实时值 */
+function usePointBinding(binding?: ComponentInstance["bindings"][string]) {
+  const pointName = binding?.kind === "point" ? binding.point : undefined;
+  const [state, setState] = React.useState<{
+    resolved: boolean;
+    name: string;
+    sample: PointSample | null;
+  }>({ resolved: false, name: pointName ?? "", sample: null });
+
+  React.useEffect(() => {
+    if (!pointName) {
+      setState({ resolved: false, name: "", sample: null });
+      return;
+    }
+    let alive = true;
+    let unsub: (() => void) | null = null;
+    ensurePointIndex().then((index) => {
+      if (!alive) return;
+      const pid = index.get(pointName.toLowerCase());
+      if (pid == null) {
+        setState({ resolved: false, name: pointName, sample: null });
+        return;
+      }
+      setState((s) => ({ ...s, resolved: true, name: pointName }));
+      unsub = subscribePointValue(pid, (sample) => {
+        if (alive) setState({ resolved: true, name: pointName, sample });
+      });
+    });
+    return () => {
+      alive = false;
+      unsub?.();
+    };
+  }, [pointName]);
+
+  return state;
+}
+
+/** 组件取值：point 绑定 → 真实轮询值（首帧前以 mock 兜底）；static → 静态值；无绑定 → mock */
+function useBoundValue(component: ComponentInstance, key = "value"): number {
+  const binding = component.bindings[key];
+  const pb = usePointBinding(binding);
+  const mock = useMockValue(binding);
+  if (pb.resolved && pb.sample?.value != null) return pb.sample.value;
+  return mock;
+}
+
 /** 模拟绑定值（编辑模式用，预览模式也可用于无绑定时的占位） */
 function useMockValue(binding: ComponentInstance["bindings"][string] | undefined): number {
   return React.useMemo(() => {
@@ -78,10 +210,57 @@ function useMockValue(binding: ComponentInstance["bindings"][string] | undefined
 
 /* --------------------------------- KPI 卡片 -------------------------------- */
 
+/** 碳排总览（4 格真实 KPI，api.dashboard.overview 15s 轮询；旧大屏 kpi 组件迁移用） */
+function CarbonKpiOverview() {
+  const [data, setData] = React.useState<DashboardOverview | null>(null);
+  React.useEffect(() => {
+    const load = () => api.dashboard.overview().then(setData).catch(() => {});
+    load();
+    const t = setInterval(load, 15000);
+    return () => clearInterval(t);
+  }, []);
+  if (!data) {
+    return (
+      <div className="flex h-full items-center justify-center text-slate-400">
+        <Loader2 className="h-4 w-4 animate-spin" />
+      </div>
+    );
+  }
+  const k = data.carbonKpi;
+  const kpis = [
+    { label: "总碳排放量", value: (k.totalEmissions ?? 0).toLocaleString("zh-CN", { maximumFractionDigits: 1 }), unit: "tCO₂e" },
+    { label: "碳减排量", value: (k.totalReduction ?? 0).toLocaleString("zh-CN", { maximumFractionDigits: 1 }), unit: "tCO₂e" },
+    { label: "能耗总量", value: (k.totalEnergy ?? 0).toLocaleString("zh-CN", { maximumFractionDigits: 1 }), unit: "tce" },
+    { label: "排放强度", value: (k.emissionIntensity ?? 0).toLocaleString("zh-CN", { maximumFractionDigits: 1 }), unit: "tCO₂e" },
+  ];
+  return (
+    <div className="grid h-full grid-cols-4 gap-1.5">
+      {kpis.map((it) => (
+        <div
+          key={it.label}
+          className="flex h-full flex-col justify-center rounded-md border border-white/10 bg-white/[0.05] px-2.5"
+        >
+          <p className="truncate text-[10px] uppercase tracking-[0.12em] text-slate-400">{it.label}</p>
+          <p className="mt-0.5 truncate font-cyber text-lg font-bold tabular-nums text-white">
+            {it.value}
+            <span className="ml-1 text-[10px] font-normal text-slate-400">{it.unit}</span>
+          </p>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function KpiWidget({ component }: { component: ComponentInstance }) {
-  const value = useMockValue(component.bindings.value);
-  const { unit = "", decimals = 1, color = "#22d3ee", showTrend = true } = component.props as Record<string, unknown>;
+  const { unit = "", decimals = 1, color = "#22d3ee", showTrend = true, overview = false } =
+    component.props as Record<string, unknown>;
+  const value = useBoundValue(component);
   const trend = value > 60 ? 1 : value > 30 ? 0 : -1;
+
+  // 碳排总览模式：4 格真实 KPI（api.dashboard.overview，15s 轮询；旧大屏迁移用）
+  if (overview === true || overview === "true") {
+    return <CarbonKpiOverview />;
+  }
 
   return (
     <Panel className="justify-center px-3 py-2">
@@ -117,9 +296,14 @@ function KpiWidget({ component }: { component: ComponentInstance }) {
 /* --------------------------------- 趋势图表 -------------------------------- */
 
 function ChartWidget({ component }: { component: ComponentInstance }) {
-  const { chartType = "line", color = "#38bdf8", showLegend = true } = component.props as Record<string, unknown>;
+  const {
+    chartType = "line",
+    timeWindow = "1h",
+    color = "#38bdf8",
+    showLegend = true,
+  } = component.props as Record<string, unknown>;
 
-  // 生成 mock 趋势数据
+  // 生成 mock 趋势数据（无绑定时兜底）
   const data = React.useMemo(() => {
     const now = Date.now();
     const points = 30;
@@ -128,6 +312,51 @@ function ChartWidget({ component }: { component: ComponentInstance }) {
       return [t, Math.round((50 + Math.sin(i / 5) * 30 + Math.random() * 10) * 10) / 10];
     });
   }, []);
+
+  // point 绑定 → 真实历史序列（api.data.query，30s 刷新）
+  const seriesPoint =
+    component.bindings.series?.kind === "point" ? component.bindings.series.point : undefined;
+  const [liveData, setLiveData] = React.useState<[number, number][] | null>(null);
+  React.useEffect(() => {
+    if (!seriesPoint) {
+      setLiveData(null);
+      return;
+    }
+    let alive = true;
+    async function load() {
+      try {
+        const index = await ensurePointIndex();
+        const pid = index.get(seriesPoint!.toLowerCase());
+        if (pid == null) return;
+        const windows: Record<string, { ms: number; interval: TimeBucket }> = {
+          "1h": { ms: 3600_000, interval: "minute" },
+          "6h": { ms: 6 * 3600_000, interval: "5 minute" },
+          "24h": { ms: 86_400_000, interval: "hour" },
+          "7d": { ms: 7 * 86_400_000, interval: "1 hour" },
+        };
+        const w = windows[String(timeWindow)] ?? windows["1h"];
+        const res = await api.data.query({
+          pointIds: [pid],
+          start: new Date(Date.now() - w.ms).toISOString(),
+          end: new Date().toISOString(),
+          interval: w.interval,
+          agg: "AVG",
+        });
+        const points = res[0]?.series ?? [];
+        if (alive && points.length > 0) {
+          setLiveData(points.map((p) => [new Date(p.t).getTime(), Number(p.v)] as [number, number]));
+        }
+      } catch {
+        /* 静默重试 */
+      }
+    }
+    load();
+    const t = setInterval(load, 30_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [seriesPoint, timeWindow]);
 
   const option = React.useMemo(
     () => ({
@@ -159,7 +388,7 @@ function ChartWidget({ component }: { component: ComponentInstance }) {
       series: [{
         name: component.title,
         type: (chartType === "bar" ? "bar" : "line") as "line" | "bar",
-        data,
+        data: liveData ?? data,
         smooth: true,
         symbol: "none",
         barWidth: "45%",
@@ -178,7 +407,7 @@ function ChartWidget({ component }: { component: ComponentInstance }) {
           : undefined,
       }],
     }),
-    [data, chartType, color, showLegend, component.title]
+    [liveData, data, chartType, color, showLegend, component.title]
   );
 
   return (
@@ -196,7 +425,7 @@ function ChartWidget({ component }: { component: ComponentInstance }) {
 /* --------------------------------- 仪表盘 --------------------------------- */
 
 function GaugeWidget({ component }: { component: ComponentInstance }) {
-  const value = useMockValue(component.bindings.value);
+  const value = useBoundValue(component);
   const { min = 0, max = 100, unit = "%", thresholds = "60,85" } = component.props as Record<string, unknown>;
   const thrArr = String(thresholds).split(",").map(Number);
 
@@ -248,57 +477,90 @@ function GaugeWidget({ component }: { component: ComponentInstance }) {
 
 /* --------------------------------- 告警列表 -------------------------------- */
 
-const ALARM_MOCK = [
-  { level: "CRITICAL", title: "挥发窑温度超阈值", time: "2分钟前", icon: AlertTriangle, color: "#f87171" },
-  { level: "WARN", title: "数据源完整率低于80%", time: "15分钟前", icon: Bell, color: "#fbbf24" },
-  { level: "INFO", title: "优化策略已生效", time: "1小时前", icon: Info, color: "#60a5fa" },
-  { level: "RESOLVED", title: "裂解炉温度已恢复", time: "3小时前", icon: CheckCircle2, color: "#34d399" },
-  { level: "CRITICAL", title: "碳排强度接近限值", time: "5小时前", icon: AlertTriangle, color: "#f87171" },
-];
-
-const LEVEL_CHIP: Record<string, string> = {
-  CRITICAL: "bg-red-400/10 text-red-300",
-  WARN: "bg-amber-400/10 text-amber-300",
-  INFO: "bg-blue-400/10 text-blue-300",
-  RESOLVED: "bg-emerald-400/10 text-emerald-300",
+/** 告警级别样式映射 */
+const ALARM_LEVEL_STYLE: Record<string, { color: string; chip: string; icon: React.ElementType }> = {
+  CRITICAL: { color: "#ef4444", chip: "bg-red-600/10 text-red-600", icon: AlertTriangle },
+  WARN: { color: "#d97706", chip: "bg-amber-600/10 text-amber-600", icon: Bell },
+  INFO: { color: "#3b82f6", chip: "bg-blue-600/10 text-blue-600", icon: Info },
+  RESOLVED: { color: "#059669", chip: "bg-emerald-600/10 text-emerald-600", icon: CheckCircle2 },
 };
 
 function AlarmWidget({ component }: { component: ComponentInstance }) {
   const { maxItems = 10, filterLevel = "all" } = component.props as Record<string, unknown>;
-  const items = ALARM_MOCK.filter(
-    (a) => filterLevel === "all" || (filterLevel === "WARN" && a.level !== "INFO") || a.level === filterLevel
-  ).slice(0, Number(maxItems));
+  const [rows, setRows] = React.useState<Alarm[] | null>(null);
+
+  // 真实告警（api.alarms.list，15s 轮询）
+  React.useEffect(() => {
+    let alive = true;
+    const load = () =>
+      api.alarms
+        .list({ pageSize: 50 })
+        .then((res) => {
+          if (alive) setRows(res.list);
+        })
+        .catch(() => {});
+    load();
+    const t = setInterval(load, 15000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, []);
+
+  const items = (rows ?? [])
+    .filter((a) => filterLevel === "all" || a.level === filterLevel)
+    .slice(0, Number(maxItems));
 
   return (
     <Panel>
       <PanelTitle
         title={component.title}
         extra={
-          <span className="ml-auto rounded bg-red-400/10 px-1.5 py-0.5 font-cyber text-[9px] leading-none text-red-300">
+          <span className="ml-auto rounded bg-red-600/10 px-1.5 py-0.5 font-cyber text-[9px] leading-none text-red-600">
             {items.length}
           </span>
         }
       />
       <div className="min-h-0 flex-1 overflow-auto">
-        {items.map((a, i) => {
-          const Icon = a.icon;
-          return (
-            <div
-              key={i}
-              className="flex items-center gap-2 border-b border-white/5 px-2.5 py-1.5 last:border-0 transition-colors hover:bg-white/5"
-            >
-              <span className="h-3.5 w-0.5 shrink-0 rounded" style={{ background: a.color }} />
-              <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: a.color }} />
-              <span className="flex-1 truncate text-xs text-slate-300">{a.title}</span>
-              <span
-                className={`hidden shrink-0 rounded px-1 py-0.5 text-[8px] leading-none sm:inline ${LEVEL_CHIP[a.level] ?? "bg-slate-400/10 text-slate-400"}`}
+        {rows == null ? (
+          <div className="flex h-20 items-center justify-center text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </div>
+        ) : items.length === 0 ? (
+          <div className="flex h-16 items-center justify-center text-xs text-muted-foreground">
+            暂无告警记录
+          </div>
+        ) : (
+          items.map((a) => {
+            const st =
+              a.status === "RESOLVED"
+                ? ALARM_LEVEL_STYLE.RESOLVED
+                : ALARM_LEVEL_STYLE[a.level] ?? {
+                    color: "#64748b",
+                    chip: "bg-slate-400/10 text-slate-500",
+                    icon: Info,
+                  };
+            const Icon = st.icon;
+            return (
+              <div
+                key={a.id}
+                className="flex items-center gap-2 border-b border-white/5 px-2.5 py-1.5 last:border-0 transition-colors hover:bg-white/5"
               >
-                {a.level}
-              </span>
-              <span className="shrink-0 text-[10px] tabular-nums text-slate-500">{a.time}</span>
-            </div>
-          );
-        })}
+                <span className="h-3.5 w-0.5 shrink-0 rounded" style={{ background: st.color }} />
+                <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: st.color }} />
+                <span className="flex-1 truncate text-xs text-slate-300">{a.title}</span>
+                <span
+                  className={`hidden shrink-0 rounded px-1 py-0.5 text-[8px] leading-none sm:inline ${st.chip}`}
+                >
+                  {a.level}
+                </span>
+                <span className="shrink-0 text-[10px] tabular-nums text-slate-500">
+                  {a.createdAt?.slice(5, 16) ?? ""}
+                </span>
+              </div>
+            );
+          })
+        )}
       </div>
     </Panel>
   );
@@ -312,7 +574,7 @@ function isSwitchOn(value: number): boolean {
 /* --------------------------------- 状态指示灯 ------------------------------- */
 
 function StatusWidget({ component }: { component: ComponentInstance }) {
-  const value = useMockValue(component.bindings.value);
+  const value = useBoundValue(component);
   const { onColor = "#34d399", offColor = "#f87171", label = "运行状态" } = component.props as Record<string, unknown>;
   const isOn = isSwitchOn(value);
   const c = isOn ? (onColor as string) : (offColor as string);
@@ -365,7 +627,7 @@ function TextWidget({ component }: { component: ComponentInstance }) {
 /* --------------------------------- 储罐控件 -------------------------------- */
 
 function TankWidget({ component }: { component: ComponentInstance }) {
-  const value = useMockValue(component.bindings.value);
+  const value = useBoundValue(component);
   const { fillColor = "#38bdf8", maxLevel = 100, label = "储罐" } = component.props as Record<string, unknown>;
   const pct = Math.min(100, Math.max(0, (value / Number(maxLevel)) * 100));
 
@@ -399,7 +661,7 @@ function TankWidget({ component }: { component: ComponentInstance }) {
 /* --------------------------------- 阀门控件 -------------------------------- */
 
 function ValveWidget({ component }: { component: ComponentInstance }) {
-  const value = useMockValue(component.bindings.value);
+  const value = useBoundValue(component);
   const { onColor = "#34d399", offColor = "#64748b", label = "阀门" } = component.props as Record<string, unknown>;
   const isOpen = isSwitchOn(value);
   const c = isOpen ? (onColor as string) : (offColor as string);
@@ -461,7 +723,7 @@ function PipeWidget({ component }: { component: ComponentInstance }) {
 /* --------------------------------- 工业仪表 -------------------------------- */
 
 function MeterWidget({ component }: { component: ComponentInstance }) {
-  const value = useMockValue(component.bindings.value);
+  const value = useBoundValue(component);
   const { min = 0, max = 100, unit = "", label = "压力" } = component.props as Record<string, unknown>;
   const angle = -120 + (Math.min(value, Number(max)) - Number(min)) / (Number(max) - Number(min)) * 240;
 
@@ -608,6 +870,42 @@ function ModelWidget({ component }: { component: ComponentInstance }) {
   );
 }
 
+/* --------------------------------- 点位实时值 -------------------------------- */
+
+/** 点位实时值（真实数据，5s 轮询；需在属性面板绑定 point） */
+function PointValueWidget({ component }: { component: ComponentInstance }) {
+  const { unit = "", decimals = 1, color = "#0d9488" } = component.props as Record<string, unknown>;
+  const pb = usePointBinding(component.bindings.value);
+
+  return (
+    <Panel className="justify-center px-3 py-2">
+      <div className="flex items-center gap-1.5 truncate text-[10px] uppercase tracking-[0.14em] text-slate-500">
+        <Radio className="h-3 w-3 shrink-0 text-teal-500" />
+        <span className="truncate">{pb.name || component.title}</span>
+      </div>
+      <div className="mt-0.5 flex items-baseline gap-1.5">
+        <span
+          className="font-cyber text-[26px] font-bold leading-none tabular-nums"
+          style={{ color: color as string, textShadow: `0 0 14px ${color as string}55` }}
+        >
+          {pb.sample?.value != null ? Number(pb.sample.value).toFixed(Number(decimals)) : "--"}
+        </span>
+        <span className="text-xs text-slate-500">
+          {pb.sample?.curve ? `℃ 峰值 · ${pb.sample.curve.count} 点` : (unit as string)}
+        </span>
+        {pb.sample?.ts ? (
+          <span className="ml-auto font-mono text-[9px] tabular-nums text-slate-500">
+            {pb.sample.ts.slice(5, 16)}
+          </span>
+        ) : null}
+      </div>
+      {!pb.resolved && pb.name ? (
+        <p className="mt-0.5 text-[9px] text-slate-500">点位未找到，请检查绑定</p>
+      ) : null}
+    </Panel>
+  );
+}
+
 /* --------------------------------- 渲染分发器 ------------------------------- */
 
 const WIDGET_MAP: Record<string, React.FC<{ component: ComponentInstance }>> = {
@@ -622,6 +920,7 @@ const WIDGET_MAP: Record<string, React.FC<{ component: ComponentInstance }>> = {
   pipe: PipeWidget,
   meter: MeterWidget,
   model: ModelWidget,
+  point: PointValueWidget,
 };
 
 /** Widget 渲染入口 */

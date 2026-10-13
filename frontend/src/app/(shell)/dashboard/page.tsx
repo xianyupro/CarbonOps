@@ -13,12 +13,14 @@ import {
   Zap,
   Flame,
   Factory,
-  Layers,
   PlayCircle,
   Sparkles,
   ArrowDown,
   ArrowUp,
   Minus,
+  BellRing,
+  ChevronRight,
+  LayoutPanelLeft,
   type LucideIcon,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -414,6 +416,8 @@ export default function DashboardPage() {
   // Recipe state
   const [recipes, setRecipes] = React.useState<FormConfig[]>([]);
   const [selectedRecipeId, setSelectedRecipeId] = React.useState<number | null>(null);
+  // 运行总览子功能弹窗：低碳运行场景 / 组态展示区 / 统一告警总览
+  const [subDialog, setSubDialog] = React.useState<null | "scenes" | "canvas" | "alarms">(null);
   const [recipePageConfig, setRecipePageConfig] = React.useState<Record<string, unknown> | null>(null);
   const [recipeLoading, setRecipeLoading] = React.useState(true);
 
@@ -750,57 +754,72 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Industry Scene Showcase (客户 demo 中表达的业务入口) */}
-      <IndustrySceneShowcase />
-
-      {/* Low-Code Canvas Section (Configurable) */}
-      <DashboardCanvas
-        pageConfig={recipePageConfig}
-        loading={recipeLoading}
-        onEdit={handleEditDashboard}
-      />
-
-      {/* Alarm Overview Section (Fixed) */}
-      <AlarmOverviewSection
-        summary={overview?.alarmSummary ?? null}
-        loading={loading}
-      />
-
-      {/* Recent Activity */}
-      <div className="panel-cyber rounded-xl p-5">
-        <span className="corner-decor tl" />
-        <span className="corner-decor tr" />
-        <span className="corner-decor bl" />
-        <span className="corner-decor br" />
-        <h3 className="panel-title-bar mb-3 flex items-center gap-2 text-sm font-semibold tracking-wider">
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-purple-500/15 text-purple-400">
-            <Layers className="h-4 w-4" strokeWidth={2.2} />
-          </span>
-          最近操作活动
-        </h3>
-        <div>
-          {loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <Skeleton key={i} className="h-12 w-full" />
-              ))}
-            </div>
-          ) : overview && overview.recentActivity.length > 0 ? (
-            <div>
-              {overview.recentActivity.slice(0, 8).map((item, idx, arr) => (
-                <ActivityItem
-                  key={item.id}
-                  item={item}
-                  isLast={idx === Math.min(arr.length - 1, 7)}
-                />
-              ))}
-            </div>
-          ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              暂无操作记录
+      {/* 驾驶舱面板：当前配方的组态结果（定制结果的展示位；编辑驾驶舱可自定义，切换配方可换版） */}
+      <div>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+            <p className="text-sm font-semibold tracking-tight text-foreground">
+              驾驶舱面板
+              <span className="ml-2 text-xs font-normal text-muted-foreground">
+                当前配方：{recipes.find((r) => r.id === selectedRecipeId)?.name ?? "默认"} ·
+                此处即配方定制结果的展示位，右上角「编辑面板配方」可自定义；与自定义大屏同一套组态引擎
+              </span>
             </p>
-          )}
         </div>
+        <DashboardCanvas
+          pageConfig={recipePageConfig}
+          loading={recipeLoading}
+          onEdit={handleEditDashboard}
+        />
+      </div>
+
+      {/* 运行总览子功能入口（弹窗式，与「二级功能子窗口化」信息架构一致） */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        {(
+          [
+            {
+              key: "scenes" as const,
+              icon: Boxes,
+              title: "低碳运行场景",
+              tag: "SCENES",
+              purpose: "生产与示范场景资产总览——查看各行业场景，打开对应数字孪生或场景工作台",
+            },
+            {
+              key: "alarms" as const,
+              icon: BellRing,
+              title: "统一告警总览",
+              tag: "ALARMS",
+              purpose: "跨场景告警聚合与分级统计——掌握活跃告警分布，快速定位与处置",
+            },
+          ] as { key: "scenes" | "alarms"; icon: LucideIcon; title: string; tag: string; purpose: string }[]
+        ).map((f) => {
+          const Icon = f.icon;
+          return (
+            <button
+              key={f.key}
+              onClick={() => setSubDialog(f.key)}
+              className="panel-cyber group relative flex items-start gap-3 rounded-xl p-4 text-left transition-all hover:-translate-y-0.5 hover:shadow-card-md"
+            >
+              <span className="corner-decor tr" />
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <Icon className="h-4 w-4" strokeWidth={2.2} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="flex items-center gap-2">
+                  <span className="text-sm font-semibold tracking-tight text-foreground">
+                    {f.title}
+                  </span>
+                  <span className="font-cyber rounded border border-primary/30 bg-primary/5 px-1.5 py-0.5 text-[9px] uppercase tracking-wider text-primary">
+                    {f.tag}
+                  </span>
+                </span>
+                <span className="mt-1 block text-xs leading-relaxed text-muted-foreground">
+                  {f.purpose}
+                </span>
+              </span>
+              <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted-foreground/50 transition-all group-hover:translate-x-0.5 group-hover:text-primary" />
+            </button>
+          );
+        })}
       </div>
 
       {/* Footer */}
@@ -824,6 +843,31 @@ export default function DashboardPage() {
           }}
         />
       ) : null}
+      {/* 子功能弹窗：低碳运行场景 / 统一告警总览 */}
+      <Dialog open={subDialog != null} onOpenChange={(o) => !o && setSubDialog(null)}>
+        <DialogContent className="max-h-[88vh] overflow-hidden sm:max-w-6xl">
+          <DialogHeader>
+            <DialogTitle className="flex flex-wrap items-center gap-2 text-base">
+              {subDialog === "scenes" ? "低碳运行场景" : "统一告警总览"}
+              <span className="text-xs font-normal text-muted-foreground">
+                {subDialog === "scenes"
+                  ? "生产与示范场景资产总览，打开对应数字孪生或场景工作台"
+                  : "跨场景告警聚合与分级统计，快速定位活跃告警"}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[calc(88vh-110px)] overflow-auto pr-1">
+            {subDialog === "scenes" && <IndustrySceneShowcase />}
+            {subDialog === "alarms" && (
+              <AlarmOverviewSection
+                summary={overview?.alarmSummary ?? null}
+                loading={loading}
+              />
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>

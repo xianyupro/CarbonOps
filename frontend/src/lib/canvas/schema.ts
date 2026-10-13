@@ -15,7 +15,8 @@ export type ComponentType =
   | "valve" // 阀门（工业矢量）
   | "pipe" // 管道（工业矢量）
   | "meter" // 工业仪表
-  | "model"; // 智能模型组件
+  | "model" // 智能模型组件
+  | "point"; // 点位实时值（真实数据）
 
 /** 组件分类 */
 export type ComponentCategory = "basic" | "chart" | "industrial" | "data" | "model";
@@ -173,20 +174,21 @@ export function createEmptyPageConfig(): PageConfig {
 }
 
 /** 兼容旧版 pageConfig（seed 数据格式）的转换器 */
-export function migratePageConfig(raw: Record<string, unknown> | null): PageConfig {
-  if (!raw) return createEmptyPageConfig();
+export function migratePageConfig(raw: unknown): PageConfig {
+  if (raw == null || typeof raw !== "object") return createEmptyPageConfig();
+  const rawObj = raw as Record<string, unknown>;
   // 如果已经是 v2 格式
-  if (raw.version === "2.0" && Array.isArray(raw.components)) {
-    return raw as unknown as PageConfig;
+  if (rawObj.version === "2.0" && Array.isArray(rawObj.components)) {
+    return raw as PageConfig;
   }
   // 旧格式转换（seed 数据的 components 数组）
-  const oldComponents = Array.isArray(raw.components) ? raw.components : [];
+  const oldComponents = Array.isArray(rawObj.components) ? rawObj.components : [];
   return {
     version: "2.0",
     layout: "grid",
     canvas: {
-      background: (raw.style as Record<string, string>)?.background ?? "#0f172a",
-      theme: ((raw.style as Record<string, string>)?.theme as "dark" | "light") ?? "dark",
+      background: (rawObj.style as Record<string, string>)?.background ?? "#0f172a",
+      theme: ((rawObj.style as Record<string, string>)?.theme as "dark" | "light") ?? "dark",
       gridSize: 8,
     },
     components: oldComponents.map((c: Record<string, unknown>) => ({

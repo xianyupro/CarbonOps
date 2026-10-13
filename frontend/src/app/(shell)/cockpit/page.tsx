@@ -41,7 +41,8 @@ const VIEWS: { key: View; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function CockpitHubPage() {
-  const [view, setView] = React.useState<View>("overview");
+  // 启动默认进入数字孪生视图（平台主入口）
+  const [view, setView] = React.useState<View>("twin");
 
   return (
     <div className="flex flex-col gap-3">

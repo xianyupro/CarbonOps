@@ -14,6 +14,7 @@ import {
   Compass,
   LayoutGrid,
   Brain,
+  Radio,
 } from "lucide-react";
 import type { ComponentCategory, ComponentType } from "./schema";
 
@@ -78,8 +79,11 @@ export const COMPONENT_REGISTRY: Record<ComponentType, ComponentDefinition> = {
       decimals: 1,
       color: "#22c55e",
       showTrend: true,
+      overview: false,
     },
     propSchema: [
+      { key: "overview", label: "碳排总览模式", type: "select", default: "false",
+        options: [{ label: "否（单值卡）", value: "false" }, { label: "是（4 格碳排 KPI）", value: "true" }], group: "基础" },
       { key: "unit", label: "单位", type: "text", default: "", group: "基础" },
       { key: "decimals", label: "小数位", type: "number", default: 1, group: "基础" },
       { key: "color", label: "数值颜色", type: "color", default: "#22c55e", group: "样式" },
@@ -294,6 +298,27 @@ export const COMPONENT_REGISTRY: Record<ComponentType, ComponentDefinition> = {
       { key: "max", label: "最大值", type: "number", default: 100, group: "基础" },
       { key: "unit", label: "单位", type: "text", default: "", group: "基础" },
       { key: "value", label: "绑定数据", type: "binding", group: "数据绑定" },
+    ],
+  },
+
+  point: {
+    type: "point",
+    category: "data",
+    label: "点位实时值",
+    icon: Radio,
+    description: "绑定单个数据点位，实时显示最新值（真实数据）",
+    defaultSize: { w: 3, h: 2 },
+    defaultProps: {
+      unit: "",
+      decimals: 1,
+      color: "#0d9488",
+    },
+    propSchema: [
+      { key: "unit", label: "单位", type: "text", default: "", group: "基础" },
+      { key: "decimals", label: "小数位", type: "number", default: 1, group: "基础" },
+      { key: "color", label: "数值颜色", type: "color", default: "#0d9488", group: "样式" },
+      { key: "value", label: "绑定数据", type: "binding", group: "数据绑定",
+        description: "绑定数据源点位，5s 轮询实时值" },
     ],
   },
 
