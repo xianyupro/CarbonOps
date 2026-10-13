@@ -3,7 +3,7 @@ from fastapi import APIRouter
 from app.api.v1 import (
     auth, data_sources, data_imports, data_points, data_query, data_quality,
     dashboard, users, model_lib, metamodels, kg, scenarios, alarms, studio,
-    flows, screens, system_admin,
+    flows, screens, system_admin, ai_chat,
 )
 
 router = APIRouter()
@@ -24,3 +24,4 @@ router.include_router(system_admin.router, prefix="/system-admin", tags=["系统
 router.include_router(scenarios.router, prefix="/scenarios", tags=["行业场景"])
 router.include_router(alarms.router, prefix="/alarms", tags=["告警中心"])
 router.include_router(studio.router, prefix="/forms", tags=["组态开发"])
+router.include_router(ai_chat.router, prefix="/ai-chat", tags=["智能助手"])

@@ -32,6 +32,21 @@ export interface KilnTelemetry {
   boilerPressure: number | null; // 余热锅炉锅筒压力 MPa
   fanValve: number | null; // 增压风机进口阀门开度反馈值 %
   drumLevel: number | null; // 1#锅筒液位 mm
+  drum2Level: number | null; // 2#锅筒液位 mm
+  drum3Level: number | null; // 3#锅筒液位 mm
+  headTempLower: number | null; // 窑头温度（下）℃
+  roofLevel: number | null; // 窑顶料位 mm
+  feedCurrent: number | null; // 圆盘给料机电流 A
+  motorCurrent: number | null; // 主电机电流 A
+  airPress: number | null; // 窑头压缩空气支管压力 kPa
+  airFlow: number | null; // 窑头压缩空气流量 Nm³/h
+  whInPress: number | null; // 余热锅炉入口压力 kPa
+  whOutPress: number | null; // 余热锅炉出口压力 kPa
+  whInTemp: number | null; // 余热锅炉入口温度 ℃
+  espInTemp: number | null; // 电收尘器入口温度 ℃
+  espOutPress: number | null; // 电收尘器出口压力 Pa
+  fanOutPress: number | null; // 风机出口压力 Pa
+  fanOutTemp: number | null; // 风机出口温度 ℃
   tempField: [number, number][] | null; // 温度场曲线 [位置m, 温度℃]
 }
 

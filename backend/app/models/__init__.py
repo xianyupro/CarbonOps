@@ -17,6 +17,7 @@ from .flow import ComponentDef, FlowProject, FlowRun  # noqa: F401
 from .screen import ScreenConfig  # noqa: F401
 from .system import SystemSetting  # noqa: F401
 from .platform import Scenario, Alarm, FormConfig  # noqa: F401
+from .ai_chat import AiChatSession, AiChatMessage  # noqa: F401
 
 __all__ = [
     "Base",
@@ -47,4 +48,6 @@ __all__ = [
     "Scenario",
     "Alarm",
     "FormConfig",
+    "AiChatSession",
+    "AiChatMessage",
 ]

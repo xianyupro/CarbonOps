@@ -11,6 +11,7 @@ import dynamic from "next/dynamic";
 import { toast } from "sonner";
 import {
   Activity,
+  FlaskConical,
   Loader2,
   Moon,
   RefreshCw,
@@ -19,6 +20,7 @@ import {
   Boxes,
   Tag,
 } from "lucide-react";
+import { TwinSimulator } from "@/lib/twin-sim";
 
 import { api } from "@/lib/api";
 import type { DataPoint } from "@/types/api";
@@ -50,6 +52,19 @@ const POINT_BINDING: { name: string; field: keyof KilnTelemetry }[] = [
   { name: "余热锅炉锅筒压力", field: "boilerPressure" },
   { name: "增压风机进口阀门开度反馈值", field: "fanValve" },
   { name: "1#锅筒液位", field: "drumLevel" },
+  { name: "回转窑窑头温度（下）", field: "headTempLower" },
+  { name: "挥发窑炉顶料位", field: "roofLevel" },
+  { name: "圆盘给料机电流", field: "feedCurrent" },
+  { name: "主电机电流信号", field: "motorCurrent" },
+  { name: "窑头压缩空气支管压力", field: "airPress" },
+  { name: "余热锅炉入口压力", field: "whInPress" },
+  { name: "余热锅炉出口压力", field: "whOutPress" },
+  { name: "余热锅炉入口温度", field: "whInTemp" },
+  { name: "电收尘器入口温度", field: "espInTemp" },
+  { name: "风机出口压力", field: "fanOutPress" },
+  { name: "风机出口温度", field: "fanOutTemp" },
+  { name: "2#锅筒液位", field: "drum2Level" },
+  { name: "3#锅筒液位", field: "drum3Level" },
 ];
 
 const EMPTY: KilnTelemetry = {
@@ -61,27 +76,75 @@ const EMPTY: KilnTelemetry = {
   boilerPressure: null,
   fanValve: null,
   drumLevel: null,
+  drum2Level: null,
+  drum3Level: null,
+  headTempLower: null,
+  roofLevel: null,
+  feedCurrent: null,
+  motorCurrent: null,
+  airPress: null,
+  airFlow: null,
+  whInPress: null,
+  whOutPress: null,
+  whInTemp: null,
+  espInTemp: null,
+  espOutPress: null,
+  fanOutPress: null,
+  fanOutTemp: null,
   tempField: null,
 };
 
 type FieldStamps = Partial<Record<keyof KilnTelemetry, string>>;
 
-/** 遥测面板行定义（含小数位与告警阈值） */
-const PANEL_ROWS: {
+/** 遥测面板行定义（含小数位与告警阈值），按子系统分组 */
+interface PanelRow {
   label: string;
   field: Exclude<keyof KilnTelemetry, "tempField">;
   unit: string;
   digits: number;
   warnAbove?: number;
-}[] = [
-  { label: "窑尾温度", field: "tailTemp", unit: "℃", digits: 1, warnAbove: 1050 },
-  { label: "窑头温度（上）", field: "headTemp", unit: "℃", digits: 1 },
-  { label: "给料频率", field: "feedFreq", unit: "Hz", digits: 1 },
-  { label: "主电机频率", field: "motorFreq", unit: "Hz", digits: 1 },
-  { label: "CO 浓度", field: "co", unit: "%", digits: 3 },
-  { label: "锅筒压力", field: "boilerPressure", unit: "MPa", digits: 2 },
-  { label: "风机阀开度", field: "fanValve", unit: "%", digits: 1 },
-  { label: "1#锅筒液位", field: "drumLevel", unit: "mm", digits: 1 },
+  warnBelow?: number;
+}
+
+const PANEL_GROUPS: { group: string; rows: PanelRow[] }[] = [
+  {
+    group: "窑体热工",
+    rows: [
+      { label: "窑尾温度", field: "tailTemp", unit: "℃", digits: 1, warnAbove: 1050 },
+      { label: "窑头温度（上）", field: "headTemp", unit: "℃", digits: 1 },
+      { label: "窑头温度（下）", field: "headTempLower", unit: "℃", digits: 1 },
+      { label: "窑顶料位", field: "roofLevel", unit: "mm", digits: 1 },
+    ],
+  },
+  {
+    group: "传动与给料",
+    rows: [
+      { label: "主电机频率", field: "motorFreq", unit: "Hz", digits: 2 },
+      { label: "主电机电流", field: "motorCurrent", unit: "A", digits: 1, warnAbove: 320 },
+      { label: "给料频率", field: "feedFreq", unit: "Hz", digits: 2 },
+      { label: "给料机电流", field: "feedCurrent", unit: "A", digits: 2 },
+    ],
+  },
+  {
+    group: "余热锅炉",
+    rows: [
+      { label: "锅筒压力", field: "boilerPressure", unit: "MPa", digits: 2, warnAbove: 1.45 },
+      { label: "1#锅筒液位", field: "drumLevel", unit: "mm", digits: 1 },
+      { label: "2#锅筒液位", field: "drum2Level", unit: "mm", digits: 1 },
+      { label: "3#锅筒液位", field: "drum3Level", unit: "mm", digits: 1 },
+      { label: "入口温度", field: "whInTemp", unit: "℃", digits: 1 },
+    ],
+  },
+  {
+    group: "烟气系统",
+    rows: [
+      { label: "CO 浓度", field: "co", unit: "%", digits: 3, warnAbove: 0.08 },
+      { label: "风机阀开度", field: "fanValve", unit: "%", digits: 1 },
+      { label: "电收尘入口温度", field: "espInTemp", unit: "℃", digits: 1 },
+      { label: "风机出口温度", field: "fanOutTemp", unit: "℃", digits: 1 },
+      { label: "风机出口压力", field: "fanOutPress", unit: "Pa", digits: 0 },
+    ],
+  },
 ];
 
 export default function KilnTwinPage() {
@@ -97,6 +160,10 @@ export default function KilnTwinPage() {
   const [view, setView] = React.useState<{ key: number; preset: ViewPreset } | null>(null);
   const [segment, setSegment] = React.useState<{ index: number; temp: number } | null>(null);
   const [device, setDevice] = React.useState<TwinDeviceInfo | null>(null);
+  const [demoMode, setDemoMode] = React.useState(
+    () => localStorage.getItem("kiln_twin_demo") === "1"
+  );
+  const simRef = React.useRef<TwinSimulator | null>(null);
   const pointIdsRef = React.useRef<Partial<Record<keyof KilnTelemetry, number>>>({});
 
   // 1) 解析点位 ID
@@ -122,7 +189,7 @@ export default function KilnTwinPage() {
 
   // 2) 轮询最新值（每轮记录各字段更新时间）
   React.useEffect(() => {
-    if (loading) return;
+    if (loading || demoMode) return;
     let stopped = false;
 
     async function poll() {
@@ -167,35 +234,76 @@ export default function KilnTwinPage() {
       stopped = true;
       clearInterval(timer);
     };
-  }, [loading]);
+  }, [loading, demoMode]);
+
+  // 2b) 模拟演示：每秒由引擎生成全量遥测（含合成温度场），数据实时跳动
+  React.useEffect(() => {
+    if (!demoMode || loading) return;
+    if (!simRef.current) simRef.current = new TwinSimulator();
+    const sim = simRef.current;
+    const now = () => new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    const tick = () => {
+      const values = sim.tick(1);
+      const t = now();
+      setTelemetry(values);
+      const stamps: FieldStamps = {};
+      for (const g of PANEL_GROUPS) {
+        for (const r of g.rows) stamps[r.field] = t;
+      }
+      stamps.tempField = t;
+      setStamps(stamps);
+      setLastSync(`${t} · SIM`);
+    };
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [demoMode, loading]);
+
+  function toggleDemo() {
+    const next = !demoMode;
+    setDemoMode(next);
+    localStorage.setItem("kiln_twin_demo", next ? "1" : "0");
+    toast.success(
+      next ? "模拟演示已开启：孪生数据按秒实时演化" : "模拟演示已关闭：恢复现场数据轮询"
+    );
+  }
 
   // 温度场峰值（曲线最高点）
   const fieldPeak = telemetry.tempField
     ? Math.max(...telemetry.tempField.map((x) => x[1] as number))
     : null;
 
-  // 遥测面板数据行（温度场峰值并入展示）
-  const panelRows = [
-    ...PANEL_ROWS.map((r) => {
-      const raw = telemetry[r.field];
-      return {
-        key: r.field as string,
-        label: r.label,
-        value: fmt(raw, r.digits),
-        unit: r.unit,
-        time: stamps[r.field],
-        warn: r.warnAbove != null && raw != null && raw > r.warnAbove,
-      };
-    }),
-    {
-      key: "tempFieldPeak",
-      label: "温度场峰值",
-      value: fmt(fieldPeak, 1),
-      unit: "℃",
-      time: stamps.tempField,
-      warn: fieldPeak != null && fieldPeak > 1100,
-    },
-  ];
+  // 遥测面板分组数据行（温度场峰值并入第一组末尾）
+  const panelGroups = PANEL_GROUPS.map((g, gi) => ({
+    group: g.group,
+    rows: [
+      ...g.rows.map((r) => {
+        const raw = telemetry[r.field];
+        return {
+          key: r.field as string,
+          label: r.label,
+          value: fmt(raw, r.digits),
+          unit: r.unit,
+          time: stamps[r.field],
+          warn:
+            (r.warnAbove != null && raw != null && raw > r.warnAbove) ||
+            (r.warnBelow != null && raw != null && raw < r.warnBelow),
+        };
+      }),
+      ...(gi === 0
+        ? [
+            {
+              key: "tempFieldPeak",
+              label: "温度场峰值",
+              value: fmt(fieldPeak, 1),
+              unit: "℃",
+              time: stamps.tempField,
+              warn: fieldPeak != null && fieldPeak > 1100,
+            },
+          ]
+        : []),
+    ],
+  }));
 
   // 温度场图例渐变（与筒体着色同一映射：500℃ 暗红 → 1200℃ 亮黄，高温在上）
   const legendGradient = React.useMemo(() => {
@@ -215,6 +323,16 @@ export default function KilnTwinPage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          <Button
+            variant={demoMode ? "default" : "outline"}
+            size="sm"
+            onClick={toggleDemo}
+            className={demoMode ? "bg-amber-600 hover:bg-amber-700" : ""}
+          >
+            <FlaskConical className="mr-1 h-4 w-4" />
+            模拟演示
+            {demoMode ? <span className="ml-1 font-cyber text-[9px]">ON</span> : null}
+          </Button>
           <Button variant={showLabels ? "default" : "outline"} size="sm" onClick={() => setShowLabels((v) => !v)}>
             <Tag className="mr-1 h-4 w-4" /> 数据标签
           </Button>
@@ -370,28 +488,41 @@ export default function KilnTwinPage() {
             </span>
           </div>
           <div className="flex-1 divide-y divide-border/70 overflow-auto">
-            {panelRows.map((r) => (
-              <div key={r.key} className="flex items-center justify-between gap-2 px-3 py-[7px]">
-                <div className="min-w-0">
-                  <p className="truncate text-xs text-muted-foreground">{r.label}</p>
-                  <p className="font-mono text-[9px] tabular-nums text-muted-foreground/60">
-                    {r.time ?? "--:--:--"}
-                  </p>
-                </div>
-                <p
-                  className={`font-mono text-sm font-semibold tabular-nums ${
-                    r.warn ? "text-red-600" : "text-teal-700"
-                  }`}
-                >
-                  {r.value}
-                  <span className="ml-0.5 text-[10px] font-normal text-slate-400">{r.unit}</span>
+            {panelGroups.map((g) => (
+              <div key={g.group}>
+                <p className="sticky top-0 z-[1] bg-card/95 px-3 py-1 font-cyber text-[9px] font-semibold uppercase tracking-[0.14em] text-muted-foreground backdrop-blur">
+                  {g.group}
                 </p>
+                {g.rows.map((r) => (
+                  <div
+                    key={r.key}
+                    className="flex items-center justify-between gap-2 px-3 py-[7px]"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-xs text-muted-foreground">{r.label}</p>
+                      <p className="font-mono text-[9px] tabular-nums text-muted-foreground/60">
+                        {r.time ?? "--:--:--"}
+                      </p>
+                    </div>
+                    <p
+                      className={`font-mono text-sm font-semibold tabular-nums ${
+                        r.warn ? "text-red-600" : "text-teal-700"
+                      }`}
+                    >
+                      {r.value}
+                      <span className="ml-0.5 text-[10px] font-normal text-slate-400">{r.unit}</span>
+                    </p>
+                  </div>
+                ))}
               </div>
             ))}
           </div>
           <div className="border-t border-border px-3 py-1.5">
             <p className="text-[9px] text-muted-foreground/70">
-              数据来源：数据基座 /data/latest · 窑尾温度 &gt;1050℃ 告警
+              {demoMode
+                ? "数据来源：模拟演示引擎（1s 演化，不写回数据基座）"
+                : "数据来源：数据基座 /data/latest"}{" "}
+              · 窑尾温度 &gt;1050℃ 告警
             </p>
           </div>
         </aside>

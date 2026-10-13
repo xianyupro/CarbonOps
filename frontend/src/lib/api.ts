@@ -96,6 +96,11 @@ import type {
   UserListResult,
   UserUpdatePayload,
 } from "@/types/api";
+import type {
+  AiChatSession,
+  AiChatSessionDetail,
+  AiChatStatus,
+} from "@/types/ai-chat";
 
 /**
  * Resolve an API / WebSocket base URL that works equally in:
@@ -600,6 +605,24 @@ export const api = {
       request<void>("DELETE", `/forms/${id}`),
     publish: (id: number) =>
       request<FormConfig>("POST", `/forms/${id}/publish`),
+  },
+
+  aiChat: {
+    status: () => request<AiChatStatus>("GET", "/ai-chat/status"),
+    sessions: () => request<AiChatSession[]>("GET", "/ai-chat/sessions"),
+    createSession: (title: string) =>
+      request<AiChatSession>("POST", "/ai-chat/sessions", { body: { title } }),
+    getSession: (id: number) =>
+      request<AiChatSessionDetail>("GET", `/ai-chat/sessions/${id}`),
+    renameSession: (id: number, title: string) =>
+      request<AiChatSession>("PUT", `/ai-chat/sessions/${id}/title`, {
+        body: { title },
+      }),
+    deleteSession: (id: number) =>
+      request<void>("DELETE", `/ai-chat/sessions/${id}`),
+    /** 流式对话返回 SSE Response，由调用方读取 body 流。 */
+    chatStreamUrl: (sessionId: number) =>
+      buildUrl(`/ai-chat/sessions/${sessionId}/chat`),
   },
 };
 
