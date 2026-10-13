@@ -624,6 +624,20 @@ export const api = {
     chatStreamUrl: (sessionId: number) =>
       buildUrl(`/ai-chat/sessions/${sessionId}/chat`),
   },
+
+  metamodelAi: {
+    /** 自然语言 → 元模型草稿（camelCase，与登记表单同构，不落库）。 */
+    draft: (description: string, modelType?: string) =>
+      request<{ draft: MetamodelPayload }>("POST", "/ai-chat/metamodel/draft", {
+        body: { description, modelType },
+      }),
+    /** 对已登记元模型生成 AI 解读报告（markdown）。 */
+    analyze: (id: number) =>
+      request<{ analysis: string; name: string }>(
+        "POST",
+        `/ai-chat/metamodel/${id}/analyze`
+      ),
+  },
 };
 
 /* ------------------------------- Realtime WS ------------------------------- */

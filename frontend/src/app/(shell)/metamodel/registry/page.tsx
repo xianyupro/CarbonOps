@@ -16,6 +16,7 @@ import {
   Pencil,
   Plus,
   Save,
+  Sparkles,
   Trash2,
   X,
 } from "lucide-react";
@@ -44,6 +45,8 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { AiGenerateDialog } from "@/components/metamodel/ai-generate-dialog";
+import { AiAnalyzeDialog } from "@/components/metamodel/ai-analyze-dialog";
 
 const MODEL_TYPES: {
   value: MetamodelType;
@@ -120,6 +123,8 @@ export default function MetamodelRegistryPage() {
   const [list, setList] = React.useState<Metamodel[]>([]);
   const [facets, setFacets] = React.useState<MetamodelFacets | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const [aiGenOpen, setAiGenOpen] = React.useState(false);
+  const [analyzeTarget, setAnalyzeTarget] = React.useState<{ id: number; name: string } | null>(null);
 
   const loadList = React.useCallback(async () => {
     try {
@@ -264,6 +269,11 @@ export default function MetamodelRegistryPage() {
                 {editing && (
                   <Button variant="outline" size="sm" onClick={() => { setEditing(null); setForm(emptyForm(modelType)); }}>
                     <X className="mr-1 h-4 w-4" /> 取消编辑
+                  </Button>
+                )}
+                {!editing && (
+                  <Button variant="outline" size="sm" onClick={() => setAiGenOpen(true)}>
+                    <Sparkles className="mr-1 h-4 w-4 text-violet-600" /> AI 生成
                   </Button>
                 )}
                 <Button size="sm" onClick={handleSave} disabled={saving}>
@@ -433,6 +443,15 @@ export default function MetamodelRegistryPage() {
                       <p className="mt-0.5 font-mono text-xs text-muted-foreground">{m.metaCode}</p>
                     </div>
                     <div className="flex shrink-0 gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-violet-600"
+                        title="AI 解读"
+                        onClick={() => setAnalyzeTarget({ id: m.id, name: m.name })}
+                      >
+                        <Sparkles className="h-3.5 w-3.5" />
+                      </Button>
                       <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => startEdit(m)}>
                         <Pencil className="h-3.5 w-3.5" />
                       </Button>
@@ -452,6 +471,22 @@ export default function MetamodelRegistryPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* AI 生成 / AI 解读 */}
+      <AiGenerateDialog
+        open={aiGenOpen}
+        onOpenChange={setAiGenOpen}
+        modelType={modelType}
+        onApply={(draft) => {
+          const t = (draft.modelType as MetamodelType) || modelType;
+          if (t !== modelType) {
+            setModelType(t); // loadList 依赖 modelType，切换后自动重载
+          }
+          setForm({ ...emptyForm(t), ...draft });
+          toast.success("草稿已填充到表单，请核对后登记入库");
+        }}
+      />
+      <AiAnalyzeDialog open={!!analyzeTarget} onOpenChange={(o) => !o && setAnalyzeTarget(null)} target={analyzeTarget} />
     </div>
   );
 }

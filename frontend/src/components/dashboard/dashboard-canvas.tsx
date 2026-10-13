@@ -73,12 +73,14 @@ export function DashboardCanvas({
           </div>
         ) : hasComponents ? (
           <div
-            className="overflow-hidden rounded-xl shadow-card-sm"
+            className="overflow-hidden rounded-xl shadow-card-sm ring-1 ring-white/10"
             style={{
               background: config.canvas.background,
+              backgroundImage: "radial-gradient(rgba(148,163,184,0.07) 1px, transparent 1px)",
+              backgroundSize: "22px 22px",
               minHeight: "300px",
             }}
-          >
+            >
             <ResponsiveGridLayout
               className="layout"
               layouts={layouts}
@@ -91,10 +93,7 @@ export function DashboardCanvas({
               draggableHandle=".no-drag"
             >
               {components.map((comp: ComponentInstance) => (
-                <div
-                  key={comp.id}
-                  className="overflow-hidden rounded-lg border border-white/10 bg-slate-800/40 p-2 shadow-card-sm"
-                >
+                <div key={comp.id} className="overflow-hidden rounded-lg p-0.5">
                   <WidgetRenderer component={comp} />
                 </div>
               ))}

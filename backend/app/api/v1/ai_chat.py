@@ -24,19 +24,26 @@ from app.schemas.ai_chat import (
     AiChatSessionCreate,
     AiChatSessionOut,
     AiChatSessionRename,
+    MetamodelDraftRequest,
 )
-from app.services import ai_chat_service
+from app.services import ai_chat_service, metamodel_ai_service
 from app.services.ai_chat_service import ai_available
 
 router = APIRouter()
 
 
 def _session_out(s: AiChatSession) -> dict:
-    return AiChatSessionOut.model_validate(s).model_dump(by_alias=True, mode="json")
+    out = AiChatSessionOut.model_validate(s).model_dump(by_alias=True, mode="json")
+    # created_at/updated_at 存储为 naive UTC，补 Z 后缀让前端按 UTC 解析
+    out["createdAt"] += "Z"
+    out["updatedAt"] += "Z"
+    return out
 
 
 def _message_out(m: AiChatMessage) -> dict:
-    return AiChatMessageOut.model_validate(m).model_dump(by_alias=True, mode="json")
+    out = AiChatMessageOut.model_validate(m).model_dump(by_alias=True, mode="json")
+    out["createdAt"] += "Z"
+    return out
 
 
 def _get_owned_session(db: Session, session_id: int, user: User) -> AiChatSession:
@@ -127,6 +134,34 @@ def delete_session(
     db.commit()
     write_audit(db, user, "DELETE", resource="ai_chat_session", detail=s.title)
     return ok({"deleted": True})
+
+
+# ---------- 元模型 AI ----------
+@router.post("/metamodel/draft")
+async def metamodel_draft(
+    payload: MetamodelDraftRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """自然语言 → 元模型草稿 JSON（camelCase，与登记表单同构）。不落库。"""
+    draft = await metamodel_ai_service.generate_draft(db, payload.description, payload.model_type or None)
+    return ok({"draft": draft})
+
+
+@router.post("/metamodel/{metamodel_id}/analyze")
+async def metamodel_analyze(
+    metamodel_id: int,
+    db: Session = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """对已登记元模型生成 AI 解读报告（markdown）。"""
+    from app.models.metamodel import Metamodel
+
+    m = db.get(Metamodel, metamodel_id)
+    if not m:
+        raise NotFoundError("元模型不存在")
+    analysis = await metamodel_ai_service.analyze(db, m)
+    return ok({"analysis": analysis, "name": m.name})
 
 
 # ---------- 流式对话 ----------

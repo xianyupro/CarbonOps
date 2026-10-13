@@ -1,6 +1,10 @@
 /**
  * 组态画布 Widget 渲染组件
  * 根据 ComponentInstance 类型渲染不同的可视化控件
+ *
+ * 视觉规范：大屏深色原生 —— 半透明玻璃面板（白 4% 底 + 白 10% 描边）、
+ * 浅色文字层级（slate-300/400/500）、数据 font-cyber 等宽、
+ * ECharts 深色轴线/暗色 tooltip、告警按级别着色。
  */
 "use client";
 
@@ -15,9 +19,39 @@ const ReactECharts = React.lazy(async () => {
   return { default: mod.default };
 });
 
+const MONO = "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+
+/** 大屏面板通用外壳 */
+function Panel({
+  children,
+  className = "",
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={`flex h-full flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-900/50 ${className}`}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** 面板标题行：强调竖条 + 标题 */
+function PanelTitle({ title, extra }: { title: string; extra?: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-1.5 px-2.5 pb-1 pt-2">
+      <span className="h-3 w-0.5 shrink-0 rounded bg-cyan-400" />
+      <span className="truncate text-[11px] font-medium tracking-wide text-slate-300">{title}</span>
+      {extra}
+    </div>
+  );
+}
+
 function EChartFallback() {
   return (
-    <div className="flex h-full min-h-[80px] items-center justify-center text-muted-foreground">
+    <div className="flex h-full min-h-[80px] items-center justify-center text-slate-500">
       <Loader2 className="h-4 w-4 animate-spin" />
     </div>
   );
@@ -26,7 +60,8 @@ function EChartFallback() {
 /** 模拟绑定值（编辑模式用，预览模式也可用于无绑定时的占位） */
 function useMockValue(binding: ComponentInstance["bindings"][string] | undefined): number {
   return React.useMemo(() => {
-    if (!binding) return Math.round(Math.random() * 100 * 10) / 10;
+    // 无绑定时给确定的演示值（落在正常量程中段偏上，避免状态灯类控件随机翻转）
+    if (!binding) return 68;
     if (binding.kind === "static" && binding.value != null) {
       return Number(binding.value) || 0;
     }
@@ -45,34 +80,44 @@ function useMockValue(binding: ComponentInstance["bindings"][string] | undefined
 
 function KpiWidget({ component }: { component: ComponentInstance }) {
   const value = useMockValue(component.bindings.value);
-  const { unit = "", decimals = 1, color = "#22c55e", showTrend = true } = component.props as Record<string, unknown>;
+  const { unit = "", decimals = 1, color = "#22d3ee", showTrend = true } = component.props as Record<string, unknown>;
   const trend = value > 60 ? 1 : value > 30 ? 0 : -1;
 
   return (
-    <div className="flex h-full flex-col justify-center gap-1 rounded-lg border border-border bg-muted/50 p-3">
-      <div className="text-xs text-slate-500">{component.title}</div>
-      <div className="flex items-baseline gap-2">
+    <Panel className="justify-center px-3 py-2">
+      <div className="truncate text-[10px] uppercase tracking-[0.14em] text-slate-500">
+        {component.title}
+      </div>
+      <div className="mt-0.5 flex items-baseline gap-1.5">
         <span
-          className="text-2xl font-bold tabular-nums"
-          style={{ color: color as string }}
+          className="font-cyber text-[26px] font-bold leading-none tabular-nums"
+          style={{ color: color as string, textShadow: `0 0 14px ${color as string}55` }}
         >
           {Number(value).toFixed(Number(decimals))}
         </span>
-        <span className="text-sm text-slate-500">{unit as string}</span>
+        <span className="text-xs text-slate-500">{unit as string}</span>
         {showTrend === true || showTrend === "true" ? (
-          <span className={`text-xs ${trend > 0 ? "text-emerald-400" : trend < 0 ? "text-red-400" : "text-slate-500"}`}>
+          <span
+            className={`ml-auto rounded px-1.5 py-0.5 text-[10px] leading-none ${
+              trend > 0
+                ? "bg-emerald-400/10 text-emerald-300"
+                : trend < 0
+                  ? "bg-red-400/10 text-red-300"
+                  : "bg-slate-400/10 text-slate-400"
+            }`}
+          >
             {trend > 0 ? "↑" : trend < 0 ? "↓" : "→"}
           </span>
         ) : null}
       </div>
-    </div>
+    </Panel>
   );
 }
 
 /* --------------------------------- 趋势图表 -------------------------------- */
 
 function ChartWidget({ component }: { component: ComponentInstance }) {
-  const { chartType = "line", color = "#3b82f6", showLegend = true } = component.props as Record<string, unknown>;
+  const { chartType = "line", color = "#38bdf8", showLegend = true } = component.props as Record<string, unknown>;
 
   // 生成 mock 趋势数据
   const data = React.useMemo(() => {
@@ -86,43 +131,65 @@ function ChartWidget({ component }: { component: ComponentInstance }) {
 
   const option = React.useMemo(
     () => ({
-      grid: { top: showLegend === true || showLegend === "true" ? 35 : 15, right: 15, bottom: 25, left: 40 },
-      tooltip: { trigger: "axis", backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#cbd5e1", textStyle: { color: "#0f172a" } },
-      legend: (showLegend === true || showLegend === "true") ? { data: [component.title], textStyle: { color: "#64748b", fontSize: 10 } } : undefined,
+      backgroundColor: "transparent",
+      grid: { top: showLegend === true || showLegend === "true" ? 30 : 14, right: 16, bottom: 24, left: 42 },
+      tooltip: {
+        trigger: "axis",
+        backgroundColor: "rgba(15,23,42,0.94)",
+        borderColor: "#334155",
+        textStyle: { color: "#e2e8f0", fontSize: 11 },
+      },
+      legend: (showLegend === true || showLegend === "true")
+        ? { data: [component.title], textStyle: { color: "#7c8ba1", fontSize: 10 }, itemWidth: 14, itemHeight: 8, icon: "roundRect" }
+        : undefined,
       xAxis: {
         type: "time" as const,
-        axisLine: { lineStyle: { color: "#cbd5e1" } },
+        axisLine: { lineStyle: { color: "rgba(148,163,184,0.3)" } },
+        axisTick: { show: false },
         axisLabel: { color: "#64748b", fontSize: 9 },
+        splitLine: { show: false },
       },
       yAxis: {
         type: "value" as const,
-        axisLine: { lineStyle: { color: "#cbd5e1" } },
+        axisLine: { show: false },
+        axisTick: { show: false },
         axisLabel: { color: "#64748b", fontSize: 9 },
-        splitLine: { lineStyle: { color: "#e2e8f0" } },
+        splitLine: { lineStyle: { color: "rgba(148,163,184,0.12)" } },
       },
       series: [{
         name: component.title,
-        type: (chartType === "bar" ? "bar" : chartType === "area" ? "line" : "line") as "line" | "bar",
+        type: (chartType === "bar" ? "bar" : "line") as "line" | "bar",
         data,
         smooth: true,
         symbol: "none",
+        barWidth: "45%",
         lineStyle: { color: color as string, width: 2 },
-        itemStyle: { color: color as string },
-        areaStyle: chartType === "area" ? { color: `${color as string}33` } : undefined,
+        itemStyle: { color: color as string, borderRadius: chartType === "bar" ? 2 : 0 },
+        areaStyle: chartType === "area"
+          ? {
+              color: {
+                type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: `${color as string}44` },
+                  { offset: 1, color: `${color as string}00` },
+                ],
+              },
+            }
+          : undefined,
       }],
     }),
     [data, chartType, color, showLegend, component.title]
   );
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-muted/50 p-2">
-      <div className="mb-1 truncate text-xs font-medium text-slate-600">{component.title}</div>
-      <div className="flex-1 overflow-hidden">
+    <Panel>
+      <PanelTitle title={component.title} />
+      <div className="min-h-0 flex-1 px-1 pb-1">
         <React.Suspense fallback={<EChartFallback />}>
           <ReactECharts option={option} style={{ height: "100%", minHeight: 80 }} opts={{ renderer: "svg" }} />
         </React.Suspense>
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -135,26 +202,31 @@ function GaugeWidget({ component }: { component: ComponentInstance }) {
 
   const option = React.useMemo(
     () => ({
+      backgroundColor: "transparent",
       series: [{
         type: "gauge",
         min: Number(min),
         max: Number(max),
-        progress: { show: true, width: 10 },
+        startAngle: 210,
+        endAngle: -30,
+        progress: { show: true, width: 10, roundCap: true },
         axisLine: { lineStyle: { width: 10, color: thrArr.map((t, i) => {
           const colors = ["#22c55e", "#eab308", "#ef4444"];
           return [t / Number(max), colors[i] ?? "#ef4444"];
         }) } },
         axisTick: { show: false },
-        splitLine: { length: 8, lineStyle: { color: "#94a3b8" } },
-        axisLabel: { color: "#64748b", fontSize: 8, distance: 5 },
-        pointer: { width: 3, itemStyle: { color: "#0f172a" } },
+        splitLine: { length: 6, distance: 4, lineStyle: { color: "rgba(148,163,184,0.4)", width: 1 } },
+        axisLabel: { color: "#64748b", fontSize: 8, distance: 8 },
+        pointer: { width: 3, length: "58%", itemStyle: { color: "#e2e8f0" } },
+        anchor: { show: true, size: 6, itemStyle: { color: "#e2e8f0" } },
         detail: {
           valueAnimation: true,
           formatter: `{value}${unit as string}`,
-          color: "#0f172a",
-          fontSize: 16,
+          color: "#f1f5f9",
+          fontSize: 15,
           fontWeight: "bold" as const,
-          offsetCenter: [0, "35%"],
+          fontFamily: MONO,
+          offsetCenter: [0, "38%"],
         },
         data: [{ value: Math.min(value, Number(max)) }],
       }],
@@ -163,26 +235,33 @@ function GaugeWidget({ component }: { component: ComponentInstance }) {
   );
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-muted/50 p-1">
-      <div className="mb-0.5 truncate text-center text-xs text-slate-500">{component.title}</div>
-      <div className="flex-1 overflow-hidden">
+    <Panel>
+      <PanelTitle title={component.title} />
+      <div className="min-h-0 flex-1 px-1 pb-1">
         <React.Suspense fallback={<EChartFallback />}>
           <ReactECharts option={option} style={{ height: "100%", minHeight: 60 }} opts={{ renderer: "svg" }} />
         </React.Suspense>
       </div>
-    </div>
+    </Panel>
   );
 }
 
 /* --------------------------------- 告警列表 -------------------------------- */
 
 const ALARM_MOCK = [
-  { level: "CRITICAL", title: "挥发窑温度超阈值", time: "2分钟前", icon: AlertTriangle, color: "#ef4444" },
-  { level: "WARN", title: "数据源完整率低于80%", time: "15分钟前", icon: Bell, color: "#eab308" },
-  { level: "INFO", title: "优化策略已生效", time: "1小时前", icon: Info, color: "#3b82f6" },
-  { level: "RESOLVED", title: "裂解炉温度已恢复", time: "3小时前", icon: CheckCircle2, color: "#22c55e" },
-  { level: "CRITICAL", title: "碳排强度接近限值", time: "5小时前", icon: AlertTriangle, color: "#ef4444" },
+  { level: "CRITICAL", title: "挥发窑温度超阈值", time: "2分钟前", icon: AlertTriangle, color: "#f87171" },
+  { level: "WARN", title: "数据源完整率低于80%", time: "15分钟前", icon: Bell, color: "#fbbf24" },
+  { level: "INFO", title: "优化策略已生效", time: "1小时前", icon: Info, color: "#60a5fa" },
+  { level: "RESOLVED", title: "裂解炉温度已恢复", time: "3小时前", icon: CheckCircle2, color: "#34d399" },
+  { level: "CRITICAL", title: "碳排强度接近限值", time: "5小时前", icon: AlertTriangle, color: "#f87171" },
 ];
+
+const LEVEL_CHIP: Record<string, string> = {
+  CRITICAL: "bg-red-400/10 text-red-300",
+  WARN: "bg-amber-400/10 text-amber-300",
+  INFO: "bg-blue-400/10 text-blue-300",
+  RESOLVED: "bg-emerald-400/10 text-emerald-300",
+};
 
 function AlarmWidget({ component }: { component: ComponentInstance }) {
   const { maxItems = 10, filterLevel = "all" } = component.props as Record<string, unknown>;
@@ -191,57 +270,86 @@ function AlarmWidget({ component }: { component: ComponentInstance }) {
   ).slice(0, Number(maxItems));
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-border bg-muted/50">
-      <div className="border-b border-border px-3 py-1.5 text-xs font-medium text-slate-600">
-        {component.title}
-        <span className="ml-2 text-slate-500">({items.length})</span>
-      </div>
-      <div className="flex-1 overflow-auto">
+    <Panel>
+      <PanelTitle
+        title={component.title}
+        extra={
+          <span className="ml-auto rounded bg-red-400/10 px-1.5 py-0.5 font-cyber text-[9px] leading-none text-red-300">
+            {items.length}
+          </span>
+        }
+      />
+      <div className="min-h-0 flex-1 overflow-auto">
         {items.map((a, i) => {
           const Icon = a.icon;
           return (
-            <div key={i} className="flex items-center gap-2 border-b border-border px-3 py-1.5 last:border-0">
+            <div
+              key={i}
+              className="flex items-center gap-2 border-b border-white/5 px-2.5 py-1.5 last:border-0 transition-colors hover:bg-white/5"
+            >
+              <span className="h-3.5 w-0.5 shrink-0 rounded" style={{ background: a.color }} />
               <Icon className="h-3.5 w-3.5 shrink-0" style={{ color: a.color }} />
-              <span className="flex-1 truncate text-xs text-slate-600">{a.title}</span>
-              <span className="shrink-0 text-[10px] text-slate-500">{a.time}</span>
+              <span className="flex-1 truncate text-xs text-slate-300">{a.title}</span>
+              <span
+                className={`hidden shrink-0 rounded px-1 py-0.5 text-[8px] leading-none sm:inline ${LEVEL_CHIP[a.level] ?? "bg-slate-400/10 text-slate-400"}`}
+              >
+                {a.level}
+              </span>
+              <span className="shrink-0 text-[10px] tabular-nums text-slate-500">{a.time}</span>
             </div>
           );
         })}
       </div>
-    </div>
+    </Panel>
   );
+}
+
+/** 开关量判定：0/1 布尔语义（≥0.5 为开）与 0~100 百分比语义（>50 为开）自适应 */
+function isSwitchOn(value: number): boolean {
+  return value <= 1 ? value >= 0.5 : value > 50;
 }
 
 /* --------------------------------- 状态指示灯 ------------------------------- */
 
 function StatusWidget({ component }: { component: ComponentInstance }) {
   const value = useMockValue(component.bindings.value);
-  const { onColor = "#22c55e", offColor = "#ef4444", label = "运行状态" } = component.props as Record<string, unknown>;
-  const isOn = value > 50;
+  const { onColor = "#34d399", offColor = "#f87171", label = "运行状态" } = component.props as Record<string, unknown>;
+  const isOn = isSwitchOn(value);
+  const c = isOn ? (onColor as string) : (offColor as string);
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-border bg-muted/50 p-2">
-      <div
-        className="h-8 w-8 rounded-full ring-4 ring-offset-2 ring-offset-white transition-colors"
-        style={{
-          backgroundColor: isOn ? (onColor as string) : (offColor as string),
-          boxShadow: `0 0 12px ${isOn ? (onColor as string) : (offColor as string)}88`,
-          // ring color
-          ...(isOn ? { "--tw-ring-color": onColor as string } : { "--tw-ring-color": offColor as string }),
-        } as React.CSSProperties}
-      />
-      <span className="text-xs text-slate-500">{label as string}</span>
-    </div>
+    <Panel className="items-center justify-center gap-2 py-2">
+      <div className="relative flex items-center justify-center">
+        <span
+          aria-hidden
+          className="absolute h-10 w-10 animate-pulse rounded-full"
+          style={{ background: `${c}22` }}
+        />
+        <div
+          className="relative h-6 w-6 rounded-full ring-2 ring-offset-2 ring-offset-slate-900 transition-colors"
+          style={{
+            backgroundColor: c,
+            boxShadow: `0 0 14px ${c}99`,
+            "--tw-ring-color": `${c}55`,
+          } as React.CSSProperties}
+        />
+      </div>
+      <span className="text-[11px] tracking-wide text-slate-400">{label as string}</span>
+      <span className="font-cyber text-[10px] tabular-nums" style={{ color: c }}>
+        {isOn ? "RUNNING" : "STOPPED"}
+      </span>
+    </Panel>
   );
 }
 
 /* --------------------------------- 文本标签 -------------------------------- */
 
 function TextWidget({ component }: { component: ComponentInstance }) {
-  const { text = "文本", fontSize = 14, color = "#0f172a", bold = false } = component.props as Record<string, unknown>;
+  const { text = "文本", fontSize = 14, color = "#e2e8f0", bold = false } = component.props as Record<string, unknown>;
   return (
-    <div className="flex h-full items-center justify-center rounded p-1">
+    <div className="flex h-full items-center justify-center rounded-lg border border-white/5 bg-white/[0.02] px-2 text-center">
       <span
+        className="leading-relaxed"
         style={{
           fontSize: `${Number(fontSize)}px`,
           color: color as string,
@@ -258,29 +366,33 @@ function TextWidget({ component }: { component: ComponentInstance }) {
 
 function TankWidget({ component }: { component: ComponentInstance }) {
   const value = useMockValue(component.bindings.value);
-  const { fillColor = "#3b82f6", maxLevel = 100, label = "储罐" } = component.props as Record<string, unknown>;
+  const { fillColor = "#38bdf8", maxLevel = 100, label = "储罐" } = component.props as Record<string, unknown>;
   const pct = Math.min(100, Math.max(0, (value / Number(maxLevel)) * 100));
 
   return (
-    <div className="flex h-full flex-col items-center justify-end gap-1 rounded-lg border border-border bg-muted/50 p-2">
-      <span className="text-xs text-slate-500">{label as string}</span>
-      <div className="relative flex-1 w-16 min-h-[60px] rounded-md border-2 border-slate-300 bg-card overflow-hidden">
+    <Panel className="items-center justify-end gap-1 p-2">
+      <div className="w-full truncate text-left text-[10px] tracking-wide text-slate-500">{label as string}</div>
+      <div className="relative min-h-[60px] w-14 flex-1 overflow-hidden rounded-md border border-slate-600 bg-slate-950/60">
         <div
           className="absolute bottom-0 left-0 right-0 transition-all duration-500"
           style={{
             height: `${pct}%`,
             backgroundColor: fillColor as string,
-            opacity: 0.75,
+            opacity: 0.7,
           }}
         >
           {/* 液面波纹效果 */}
-          <div className="absolute top-0 left-0 right-0 h-1 bg-white/20 rounded-full" />
+          <div className="absolute left-0 right-0 top-0 h-1 rounded-full bg-white/25" />
         </div>
-        <span className="absolute inset-0 flex items-center justify-center text-xs font-bold text-foreground">
+        {/* 刻度线 */}
+        {[25, 50, 75].map((m) => (
+          <div key={m} className="absolute left-0 right-0 border-t border-dashed border-white/10" style={{ bottom: `${m}%` }} />
+        ))}
+        <span className="absolute inset-0 flex items-center justify-center font-cyber text-xs font-bold tabular-nums text-slate-100">
           {value.toFixed(1)}%
         </span>
       </div>
-    </div>
+    </Panel>
   );
 }
 
@@ -288,50 +400,53 @@ function TankWidget({ component }: { component: ComponentInstance }) {
 
 function ValveWidget({ component }: { component: ComponentInstance }) {
   const value = useMockValue(component.bindings.value);
-  const { onColor = "#22c55e", offColor = "#64748b", label = "阀门" } = component.props as Record<string, unknown>;
-  const isOpen = value > 50;
+  const { onColor = "#34d399", offColor = "#64748b", label = "阀门" } = component.props as Record<string, unknown>;
+  const isOpen = isSwitchOn(value);
+  const c = isOpen ? (onColor as string) : (offColor as string);
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-border bg-muted/50 p-2">
-      <svg width="40" height="40" viewBox="0 0 40 40" fill="none">
+    <Panel className="items-center justify-center gap-1 p-2">
+      <svg width="44" height="40" viewBox="0 0 40 40" fill="none">
         {/* 管道 */}
-        <rect x="0" y="17" width="14" height="6" fill="#94a3b8" />
-        <rect x="26" y="17" width="14" height="6" fill="#94a3b8" />
+        <rect x="0" y="17" width="14" height="6" fill="#475569" />
+        <rect x="26" y="17" width="14" height="6" fill="#475569" />
         {/* 阀门体 */}
-        <circle cx="20" cy="20" r="10" fill={isOpen ? (onColor as string) : (offColor as string)} stroke="#e2e8f0" strokeWidth="1.5" />
+        <circle cx="20" cy="20" r="10" fill={c} fillOpacity="0.9" stroke="#64748b" strokeWidth="1.5" />
+        <circle cx="20" cy="20" r="10" fill="none" stroke={c} strokeWidth="1" opacity="0.5" />
         {/* 阀门手柄 */}
         <rect
           x="18"
           y={isOpen ? "8" : "12"}
           width="4"
           height="12"
-          fill="#0f172a"
+          fill="#e2e8f0"
           rx="1"
           style={{ transition: "all 0.3s" }}
         />
       </svg>
-      <span className="text-xs text-slate-500">{label as string}</span>
-      <span className="text-[10px]" style={{ color: isOpen ? (onColor as string) : (offColor as string) }}>
+      <span className="text-[11px] tracking-wide text-slate-400">{label as string}</span>
+      <span className="font-cyber text-[10px] tabular-nums" style={{ color: c }}>
         {isOpen ? "开启" : "关闭"}
       </span>
-    </div>
+    </Panel>
   );
 }
 
 /* --------------------------------- 管道控件 -------------------------------- */
 
 function PipeWidget({ component }: { component: ComponentInstance }) {
-  const { color = "#94a3b8", flowColor = "#06b6d4", animated = true } = component.props as Record<string, unknown>;
+  const { color = "#475569", flowColor = "#22d3ee", animated = true } = component.props as Record<string, unknown>;
   return (
     <div className="flex h-full items-center justify-center">
       <svg width="100%" height="20" viewBox="0 0 200 20" preserveAspectRatio="none">
         <rect x="0" y="4" width="200" height="12" rx="2" fill={color as string} />
+        <rect x="0" y="4" width="200" height="12" rx="2" fill="none" stroke="rgba(226,232,240,0.12)" />
         {animated === true || animated === "true" ? (
           <>
-            <rect x="0" y="6" width="40" height="8" rx="1" fill={flowColor as string} opacity="0.7">
+            <rect x="0" y="6" width="40" height="8" rx="1" fill={flowColor as string} opacity="0.75">
               <animate attributeName="x" from="-40" to="200" dur="2s" repeatCount="indefinite" />
             </rect>
-            <rect x="0" y="6" width="40" height="8" rx="1" fill={flowColor as string} opacity="0.7">
+            <rect x="0" y="6" width="40" height="8" rx="1" fill={flowColor as string} opacity="0.75">
               <animate attributeName="x" from="-40" to="200" dur="2s" begin="1s" repeatCount="indefinite" />
             </rect>
           </>
@@ -351,26 +466,37 @@ function MeterWidget({ component }: { component: ComponentInstance }) {
   const angle = -120 + (Math.min(value, Number(max)) - Number(min)) / (Number(max) - Number(min)) * 240;
 
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-1 rounded-lg border border-border bg-muted/50 p-2">
-      <span className="text-xs text-slate-500">{label as string}</span>
-      <svg width="60" height="60" viewBox="0 0 60 60">
+    <Panel className="items-center justify-center gap-1 p-2">
+      <span className="text-[10px] tracking-wide text-slate-500">{label as string}</span>
+      <svg width="62" height="62" viewBox="0 0 60 60">
         {/* 表盘背景 */}
-        <circle cx="30" cy="30" r="26" fill="#e2e8f0" stroke="#94a3b8" strokeWidth="1.5" />
+        <circle cx="30" cy="30" r="26" fill="#0f1a2b" stroke="#334155" strokeWidth="1.5" />
         {/* 刻度弧 */}
-        <path d="M 12 42 A 22 22 0 1 1 48 42" fill="none" stroke="#cbd5e1" strokeWidth="2" strokeLinecap="round" />
+        <path d="M 12 42 A 22 22 0 1 1 48 42" fill="none" stroke="#334155" strokeWidth="2.5" strokeLinecap="round" />
+        {/* 进度弧（值到指针位置） */}
+        <path
+          d="M 12 42 A 22 22 0 1 1 48 42"
+          fill="none"
+          stroke="#22d3ee"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+          strokeDasharray="69"
+          strokeDashoffset={69 - (69 * (value - Number(min))) / (Number(max) - Number(min))}
+          style={{ transition: "stroke-dashoffset 0.5s" }}
+        />
         {/* 指针 */}
         <line
           x1="30" y1="30" x2="30" y2="12"
-          stroke="#ef4444" strokeWidth="2" strokeLinecap="round"
+          stroke="#f87171" strokeWidth="2" strokeLinecap="round"
           style={{ transform: `rotate(${angle}deg)`, transformOrigin: "30px 30px", transition: "transform 0.5s" }}
         />
-        <circle cx="30" cy="30" r="3" fill="#0f172a" />
+        <circle cx="30" cy="30" r="3" fill="#e2e8f0" />
         {/* 数值 */}
-        <text x="30" y="48" textAnchor="middle" fill="#0f172a" fontSize="10" fontWeight="bold">
+        <text x="30" y="50" textAnchor="middle" fill="#e2e8f0" fontSize="10" fontWeight="bold" fontFamily={MONO}>
           {value.toFixed(0)}{unit as string}
         </text>
       </svg>
-    </div>
+    </Panel>
   );
 }
 
@@ -405,47 +531,47 @@ function ModelWidget({ component }: { component: ComponentInstance }) {
 
   if (!mb) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-300 bg-muted/50 p-3 text-center">
+      <div className="flex h-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-slate-600 bg-slate-900/40 p-3 text-center">
         <Brain className="h-6 w-6 text-slate-500" />
-        <span className="text-xs text-slate-500">点击后绑定模型</span>
-        <span className="text-[10px] text-slate-600">在右侧属性面板选择模型</span>
+        <span className="text-xs text-slate-400">点击后绑定模型</span>
+        <span className="text-[10px] text-slate-500">在右侧属性面板选择模型</span>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-col rounded-lg border border-purple-700/50 bg-accent/60">
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-purple-500/30 bg-purple-500/[0.06]">
       {/* Header */}
-      <div className="flex items-center gap-2 border-b border-border bg-purple-900/20 px-3 py-1.5">
-        <Brain className="h-4 w-4 shrink-0 text-purple-400" />
-        <span className="flex-1 truncate text-xs font-medium text-slate-700">{component.title}</span>
-        <span className="rounded bg-purple-800/50 px-1.5 py-0.5 text-[9px] font-mono text-purple-300">
+      <div className="flex items-center gap-2 border-b border-purple-500/20 bg-purple-500/10 px-3 py-1.5">
+        <Brain className="h-4 w-4 shrink-0 text-purple-300" />
+        <span className="flex-1 truncate text-xs font-medium text-slate-200">{component.title}</span>
+        <span className="rounded bg-purple-500/20 px-1.5 py-0.5 text-[9px] font-mono text-purple-300">
           {mb.versionNo ?? "latest"}
         </span>
         <button
           type="button"
           onClick={runModel}
           disabled={running}
-          className="rounded bg-purple-600 px-2 py-0.5 text-[10px] text-foreground hover:bg-purple-500 disabled:opacity-50"
+          className="rounded bg-purple-600 px-2 py-0.5 text-[10px] text-white transition hover:bg-purple-500 disabled:opacity-50"
         >
           {running ? "运行中…" : "执行"}
         </button>
       </div>
 
       {/* Body: input/output */}
-      <div className="flex-1 overflow-auto p-2 text-xs">
+      <div className="min-h-0 flex-1 overflow-auto p-2 text-xs">
         {showInput === true || showInput === "true" ? (
           <div className="mb-2">
-            <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">输入参数</div>
+            <div className="mb-1 text-[9px] uppercase tracking-[0.14em] text-slate-500">输入参数</div>
             <div className="space-y-0.5">
               {Object.entries(mb.inputMappings).length === 0 ? (
-                <span className="text-slate-600">未配置输入映射</span>
+                <span className="text-slate-500">未配置输入映射</span>
               ) : (
                 Object.entries(mb.inputMappings).map(([param, mapping]) => (
                   <div key={param} className="flex items-center gap-1 truncate">
                     <span className="font-mono text-blue-300">{param}</span>
                     <ArrowRight className="h-2.5 w-2.5 text-slate-600" />
-                    <span className="font-mono text-emerald-300 truncate">
+                    <span className="truncate font-mono text-emerald-300">
                       {mapping.sourceCode}/{mapping.point}
                     </span>
                   </div>
@@ -457,23 +583,23 @@ function ModelWidget({ component }: { component: ComponentInstance }) {
 
         {showOutput === true || showOutput === "true" ? (
           <div>
-            <div className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">推理输出</div>
+            <div className="mb-1 text-[9px] uppercase tracking-[0.14em] text-slate-500">推理输出</div>
             {running ? (
-              <div className="flex items-center gap-1.5 text-slate-500">
+              <div className="flex items-center gap-1.5 text-slate-400">
                 <Loader2 className="h-3 w-3 animate-spin" />
                 正在推理…
               </div>
             ) : output ? (
-              <div className="space-y-1 rounded bg-card/60 p-2">
+              <div className="space-y-1 rounded border border-purple-500/15 bg-slate-950/40 p-2">
                 {Object.entries(output).map(([k, v]) => (
                   <div key={k} className="flex items-start gap-1">
                     <span className="shrink-0 text-slate-500">{k}:</span>
-                    <span className="text-slate-700">{String(v)}</span>
+                    <span className="text-slate-200">{String(v)}</span>
                   </div>
                 ))}
               </div>
             ) : (
-              <span className="text-slate-600">点击&quot;执行&quot;运行模型</span>
+              <span className="text-slate-500">点击&quot;执行&quot;运行模型</span>
             )}
           </div>
         ) : null}

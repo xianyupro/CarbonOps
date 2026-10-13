@@ -2,10 +2,11 @@
 
 /**
  * 控制流编排器 —— 组件平台核心页面。
- * 概念对齐 ApexMotion：双语义边（控制实线/数据虚线）、端口=参数、
+ * 概念对齐 ApexMotion / 海康 VM：双语义边（控制实线/数据虚线）、端口=参数、
  * 三段式绑定（$变量 / 节点.输出）、仿真执行 + 节点级运行日志。
  *
- * 布局：左侧组件库（分类分组）| 中部 X6 画布 | 右侧参数面板 / 运行日志。
+ * 布局：左侧组件库（分类可折叠）| 中部 画布 + 两段式工具栏 + 底部状态栏 | 右侧参数面板 / 运行日志。
+ * 节点卡与端口的视觉绘制统一收敛在 @/components/flow/node-factory。
  */
 import * as React from "react";
 import { toast } from "sonner";
@@ -17,11 +18,14 @@ import {
   Clock,
   LayoutGrid,
   Loader2,
+  Map as MapIcon,
+  Maximize2,
   Play,
-  Plus,
   Save,
-  Square,
   Trash2,
+  Workflow,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import {
   Dialog,
@@ -49,171 +53,22 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-
-const NODE_W = 184;
-/** 控制语义端口（决定边的类型与连线规则） */
-const CONTROL_PORTS = new Set(["in", "next", "true", "false", "loop", "exit"]);
-const isControlPort = (portId?: string) => !!portId && CONTROL_PORTS.has(portId);
-
-interface EditorNodeData extends Record<string, unknown> {
-  componentCode: string;
-  name: string;
-  color: string;
-  params: Record<string, unknown>;
-  bindings: Record<string, string>;
-}
-
-/** 节点高度随端口数自适应（端口标签在节点内部，需要足够行高） */
-function nodeHeight(comp: ComponentDef): number {
-  const leftCount = (comp.refCode !== "start" ? 1 : 0) + (comp.inputs?.length ?? 0);
-  const rightCount =
-    (comp.kind === "single" && comp.refCode !== "end" ? 1 : 0) +
-    (comp.kind === "condition" ? 2 : 0) +
-    (comp.kind === "circulate" ? 2 : 0) +
-    (comp.outputs?.length ?? 0);
-  return Math.max(58, Math.max(leftCount, rightCount, 2) * 20 + 28);
-}
-
-/**
- * 组件 → X6 端口。对齐 ApexMotion：端口=参数，左右两侧分布，
- * 标签置于节点内部（左端口标签在右、右端口标签在左）。
- */
-function buildPorts(comp: ComponentDef, height: number) {
-  const mk = (id: string, label: string, control: boolean, side: "left" | "right") => ({
-    id,
-    group: side,
-    attrs: {
-      circle: control
-        ? { stroke: "#0d9488", fill: side === "right" ? "#0d9488" : "#ffffff", r: 5 }
-        : { stroke: "#2563eb", fill: side === "right" ? "#2563eb" : "#ffffff", r: 4.5 },
-      text: { text: label },
-    },
-    label: {
-      position: side === "left" ? { name: "right", args: { dx: 6 } } : { name: "left", args: { dx: -6 } },
-    },
-  });
-
-  const items: ReturnType<typeof mk>[] = [];
-  if (comp.refCode !== "start") items.push(mk("in", "", true, "left"));
-  for (const pin of comp.inputs ?? []) items.push(mk(pin.key, pin.label, false, "left"));
-  if (comp.kind === "single" && comp.refCode !== "end") items.push(mk("next", "", true, "right"));
-  if (comp.kind === "condition") {
-    items.push(mk("true", "真", true, "right"));
-    items.push(mk("false", "假", true, "right"));
-  }
-  if (comp.kind === "circulate") {
-    items.push(mk("loop", "循环", true, "right"));
-    items.push(mk("exit", "退出", true, "right"));
-  }
-  for (const o of comp.outputs ?? []) items.push(mk(o.key, o.label, false, "right"));
-
-  return {
-    groups: {
-      left: {
-        position: {
-          name: "line",
-          args: { start: { x: 0, y: 48 }, end: { x: 0, y: Math.max(60, height - 12) } },
-        },
-        attrs: {
-          circle: { magnet: true, strokeWidth: 1.5 },
-          text: { fill: "#64748b", fontSize: 9, textAnchor: "start" },
-        },
-      },
-      right: {
-        position: {
-          name: "line",
-          args: { start: { x: NODE_W, y: 26 }, end: { x: NODE_W, y: Math.max(60, height - 12) } },
-        },
-        attrs: {
-          circle: { magnet: true, strokeWidth: 1.5 },
-          text: { fill: "#64748b", fontSize: 9, textAnchor: "end" },
-        },
-      },
-    },
-    items,
-  };
-}
-
-interface EditorNodeData extends Record<string, unknown> {
-  componentCode: string;
-  name: string;
-  color: string;
-  params: Record<string, unknown>;
-  bindings: Record<string, string>;
-}
-
-function createFlowNode(comp: ComponentDef, x: number, y: number, id: string): X6Node.Metadata {
-  const color = comp.uiConfig?.color ?? "#475569";
-  const kindLabel =
-    comp.kind === "condition" ? "分支" : comp.kind === "circulate" ? "循环" : "单步";
-  const height = nodeHeight(comp);
-  return {
-    id,
-    shape: "rect",
-    x,
-    y,
-    width: NODE_W,
-    height,
-    // 自定义 markup：左侧品牌色条 + 主名称 + 类别副标题（对齐 ApexMotion 节点卡）
-    markup: [
-      { tagName: "rect", selector: "body" },
-      { tagName: "rect", selector: "bar" },
-      { tagName: "text", selector: "label" },
-      { tagName: "text", selector: "sub" },
-    ],
-    attrs: {
-      body: {
-        fill: "#ffffff",
-        stroke: color + "77",
-        strokeWidth: 1.3,
-        rx: 10,
-        ry: 10,
-        filter: "drop-shadow(0 2px 6px rgba(15,23,42,0.10))",
-      },
-      bar: {
-        // 注意：不能用 refHeight —— X6 把数值解释为参考元素的百分比（132 = 132%），
-        // 会导致色条溢出节点。SVG rect 用绝对坐标即可。
-        x: 5,
-        y: 8,
-        width: 3.5,
-        height: height - 16,
-        rx: 2,
-        ry: 2,
-        fill: color,
-      },
-      label: {
-        text: comp.name,
-        refX: 16,
-        refY: 16,
-        fill: "#1e293b",
-        fontSize: 12,
-        fontWeight: 600,
-        textAnchor: "start",
-        textVerticalAnchor: "middle",
-      },
-      sub: {
-        text: `${comp.category} · ${kindLabel}`,
-        refX: 16,
-        refY: 34,
-        fill: "#94a3b8",
-        fontSize: 9,
-        textAnchor: "start",
-        textVerticalAnchor: "middle",
-      },
-    },
-    // X6 端口类型对 line 策略的 args 标注不全，运行时支持
-    ports: buildPorts(comp, height) as never,
-    data: {
-      componentCode: comp.code,
-      name: comp.name,
-      color,
-      params: Object.fromEntries(
-        (comp.paramsSchema ?? []).map((p) => [p.key, p.default ?? null])
-      ) as Record<string, unknown>,
-      bindings: {} as Record<string, string>,
-    } satisfies EditorNodeData,
-  };
-}
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { ComponentLibrary } from "@/components/flow/ComponentLibrary";
+import { FlowStatusBar } from "@/components/flow/StatusBar";
+import { ParamsEmptyGuide } from "@/components/flow/EmptyGuide";
+import {
+  applySelectedVisual,
+  createFlowNode,
+  type EditorNodeData,
+  isControlPort,
+  NODE_W,
+} from "@/components/flow/node-factory";
 
 export default function FlowEditorPage() {
   const containerRef = React.useRef<HTMLDivElement>(null);
@@ -226,6 +81,9 @@ export default function FlowEditorPage() {
   const [flowName, setFlowName] = React.useState("未命名流程");
   const [selectedNode, setSelectedNode] = React.useState<X6Node | null>(null);
   const [running, setRunning] = React.useState(false);
+  const [nodeCount, setNodeCount] = React.useState(0);
+  const [edgeCount, setEdgeCount] = React.useState(0);
+  const [zoomPct, setZoomPct] = React.useState(100);
   const [runResult, setRunResult] = React.useState<{
     state: string;
     durationMs: number;
@@ -286,7 +144,7 @@ export default function FlowEditorPage() {
         anchor: "center",
         connectionPoint: "anchor",
         highlight: true,
-        connector: { name: "rounded" },  // 直角圆角（X6 内置：jumpover/loop/normal/rounded/smooth）
+        connector: { name: "rounded" }, // 直角圆角（X6 内置：jumpover/loop/normal/rounded/smooth）
         createEdge() {
           return graph.createEdge({
             shape: "edge",
@@ -309,13 +167,25 @@ export default function FlowEditorPage() {
       graph.use(
         new MiniMap({
           container: minimapRef.current,
-          width: 168,
-          height: 104,
-          padding: 8,
+          width: 140,
+          height: 90,
+          padding: 6,
         })
       );
     }
     graphRef.current = graph;
+
+    // 底部状态栏数据源：节点/连线数量、缩放比例
+    const syncCounts = () => {
+      setNodeCount(graph.getNodes().length);
+      setEdgeCount(graph.getEdges().length);
+    };
+    const syncZoom = () => setZoomPct(Math.round(graph.zoom() * 100));
+    graph.on("cell:added", syncCounts);
+    graph.on("cell:removed", syncCounts);
+    graph.on("viewport:change", syncZoom);
+    syncCounts();
+    syncZoom();
 
     graph.on("edge:connected", ({ isNew, edge }: { isNew: boolean; edge: X6Edge }) => {
       if (!isNew) return;
@@ -358,6 +228,10 @@ export default function FlowEditorPage() {
     });
 
     return () => {
+      // 卸载时清理监听（dispose 亦会随图实例移除全部事件）
+      graph.off("cell:added", syncCounts);
+      graph.off("cell:removed", syncCounts);
+      graph.off("viewport:change", syncZoom);
       graph.dispose();
       graphRef.current = null;
     };
@@ -382,6 +256,24 @@ export default function FlowEditorPage() {
     loadFlow(flows[0].id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [registry, flows]);
+
+  /** 选中节点视觉：主色描边 + 外圈光晕；上一个选中节点恢复默认（不影响运行回放的临时高亮） */
+  const prevSelectedIdRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    const g = graphRef.current;
+    const selectedId = (selectedNode?.id as string | undefined) ?? null;
+    const prevId = prevSelectedIdRef.current;
+    prevSelectedIdRef.current = selectedId;
+    if (!g) return;
+    if (prevId && prevId !== selectedId) {
+      const prev = g.getCellById(prevId);
+      if (prev && prev.isNode()) applySelectedVisual(prev as X6Node, false);
+    }
+    if (selectedId) {
+      const cell = g.getCellById(selectedId);
+      if (cell && cell.isNode()) applySelectedVisual(cell as X6Node, true);
+    }
+  }, [selectedNode]);
 
   function loadFlow(id: number) {
     api.flows
@@ -426,7 +318,11 @@ export default function FlowEditorPage() {
         setTimeout(() => {
           try {
             g.zoomToFit({ padding: 40, maxScale: 1 });
-            g.centerContent();
+            // 宽流程 fit 后过小时，抬升到最低可读倍率并居中（可平移查看）
+            if (g.zoom() < 0.55) {
+              g.zoomTo(0.55);
+              g.centerContent();
+            }
           } catch {
             /* 忽略适配竞态 */
           }
@@ -457,6 +353,23 @@ export default function FlowEditorPage() {
 
   function addComponent(comp: ComponentDef) {
     addComponentAt(comp);
+  }
+
+  /** 相对缩放（±10%），比例显示由 viewport:change 事件同步 */
+  function zoomBy(delta: number) {
+    graphRef.current?.zoom(delta);
+  }
+
+  /** 适配视图：内容铺满画布并居中 */
+  function fitView() {
+    const g = graphRef.current;
+    if (!g) return;
+    try {
+      g.zoomToFit({ padding: 40, maxScale: 1 });
+      g.centerContent();
+    } catch {
+      /* 忽略适配竞态 */
+    }
   }
 
   function exportGraph(): FlowGraph {
@@ -558,7 +471,8 @@ export default function FlowEditorPage() {
     }
     for (const [, col] of cols) {
       col.sort((a, b) => a.getPosition().y - b.getPosition().y);
-      col.forEach((n, i) => n.setPosition({ x: 48 + (depth.get(n.id as string) ?? 0) * 230, y: 40 + i * 110 }));
+      // 列距 = 节点宽 200 + 40 间距；行距适配更高的节点卡
+      col.forEach((n, i) => n.setPosition({ x: 48 + (depth.get(n.id as string) ?? 0) * 240, y: 40 + i * 120 }));
     }
     setTimeout(() => {
       try {
@@ -575,7 +489,7 @@ export default function FlowEditorPage() {
   async function replayRun() {
     if (!runResult || !graphRef.current) return;
     const g = graphRef.current;
-    const stroke = (nodeId: string, color: string, width = 1.3) => {
+    const stroke = (nodeId: string, color: string, width = 1.2) => {
       const cell = g.getCellById(nodeId);
       cell?.setAttrByPath("body/stroke", color);
       cell?.setAttrByPath("body/strokeWidth", width);
@@ -632,7 +546,8 @@ export default function FlowEditorPage() {
         outputs: (comp?.outputs ?? []).map((o) => ({ key: o.key, label: o.label })),
       };
     });
-  }, [selectedNode, compByCode, registry]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedNode, compByCode]);
 
   /** 节点参数配置表单（右侧面板与双击弹窗共用） */
   function renderNodeConfig() {
@@ -768,201 +683,284 @@ export default function FlowEditorPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-96px)] gap-3">
-      {/* ===== 左侧：组件库 ===== */}
-      <div className="flex w-56 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        <div className="border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground">
-          组件库
-        </div>
-        <div className="flex-1 overflow-y-auto scrollbar-thin p-2">
-          {Object.entries(registry?.groups ?? {}).map(([cat, comps]) => (
-            <div key={cat} className="mb-3">
-              <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {cat}
-              </p>
-              <div className="space-y-1">
-                {comps.map((c) => (
-                  <div
-                    key={c.code}
-                    title={c.description ?? ""}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("application/x-component", c.code);
-                      e.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onClick={() => addComponentAt(c)}
-                    className="group flex w-full cursor-grab items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:border-border hover:bg-accent active:cursor-grabbing"
-                  >
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: c.uiConfig?.color ?? "#64748b" }}
-                    />
-                    <span className="truncate font-medium">{c.name}</span>
-                    <Plus className="ml-auto h-3 w-3 opacity-0 group-hover:opacity-60" />
-                  </div>
-                ))}
-              </div>
+    <TooltipProvider delayDuration={250}>
+      {/* 画布区局部视觉（hover 上浮 / 小地图视框），不污染全局样式 */}
+      <style jsx global>{`
+        .flow-editor .flow-node-body {
+          transition: filter 0.18s ease;
+        }
+        .flow-editor g[data-cell-id]:hover .flow-node-body {
+          filter: drop-shadow(0 5px 12px rgba(15, 23, 42, 0.22));
+        }
+        .flow-editor .x6-widget-minimap-viewport {
+          border-color: rgba(13, 148, 136, 0.6);
+          background-color: rgba(13, 148, 136, 0.08);
+        }
+      `}</style>
+
+      <div className="flex h-[calc(100vh-96px)] gap-3">
+        {/* ===== 左侧：组件库 ===== */}
+        <ComponentLibrary registry={registry} onAdd={addComponent} />
+
+        {/* ===== 中部：工具栏 + 画布 + 状态栏 ===== */}
+        <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          {/* 工具栏第一行：全局操作 */}
+          <div className="flex items-center gap-2 border-b border-border bg-muted/30 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <Workflow className="h-4 w-4 shrink-0 text-teal-600" />
+              <Select
+                value={currentId != null ? String(currentId) : undefined}
+                onValueChange={(v) => loadFlow(Number(v))}
+              >
+                <SelectTrigger className="h-8 w-36 shrink-0 text-xs">
+                  <SelectValue placeholder="选择流程" />
+                </SelectTrigger>
+                <SelectContent>
+                  {flows.map((f) => (
+                    <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-          ))}
-        </div>
-        <div className="border-t border-border p-2 text-[10px] leading-relaxed text-muted-foreground">
-          拖拽组件到画布（或点击添加）；从端口拖出连线：实线=控制流、虚线=数据流；
-          滚轮缩放、右键拖动画布
-        </div>
-      </div>
 
-      {/* ===== 中部：画布 + 工具栏 ===== */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <Select
-            value={currentId != null ? String(currentId) : undefined}
-            onValueChange={(v) => loadFlow(Number(v))}
-          >
-            <SelectTrigger className="w-40 h-8 text-xs">
-              <SelectValue placeholder="选择流程" />
-            </SelectTrigger>
-            <SelectContent>
-              {flows.map((f) => (
-                <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            className="h-8 w-40 text-xs"
-            value={flowName}
-            onChange={(e) => { setFlowName(e.target.value); setDirty(true); }}
-          />
-          {dirty && <span className="text-xs text-amber-600">未保存</span>}
-          <div className="ml-auto flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={tidyLayout} title="按执行顺序自动排列节点">
-              <LayoutGrid className="mr-1 h-3.5 w-3.5" /> 整理布局
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleSave}>
-              <Save className="mr-1 h-3.5 w-3.5" /> 保存
-            </Button>
-            <Button size="sm" onClick={handleRun} disabled={running}>
-              {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
-              运行（仿真）
-            </Button>
+            <div aria-hidden className="h-5 w-px shrink-0 bg-border" />
+
+            {/* 流程标题：内联编辑样式（非重复输入框）+ 未保存圆点指示 */}
+            <Input
+              className="h-8 w-40 rounded-md border-transparent bg-transparent px-1.5 text-xs font-semibold hover:border-input"
+              value={flowName}
+              onChange={(e) => { setFlowName(e.target.value); setDirty(true); }}
+              aria-label="流程名称"
+            />
+            {dirty && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span
+                    aria-hidden
+                    className="h-2 w-2 shrink-0 rounded-full bg-amber-500 shadow-[0_0_0_3px_rgba(245,158,11,0.16)]"
+                  />
+                </TooltipTrigger>
+                <TooltipContent side="bottom" className="text-xs">
+                  有未保存的更改
+                </TooltipContent>
+              </Tooltip>
+            )}
+
+            <div className="ml-auto flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={tidyLayout} title="按执行顺序自动排列节点">
+                <LayoutGrid className="mr-1 h-3.5 w-3.5" /> 整理布局
+              </Button>
+              <Button size="sm" variant="outline" onClick={handleSave}>
+                <Save className="mr-1 h-3.5 w-3.5" /> 保存
+              </Button>
+              <Button size="sm" onClick={handleRun} disabled={running}>
+                {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
+                运行（仿真）
+              </Button>
+            </div>
           </div>
-        </div>
-        <div
-          className="relative min-h-0 flex-1"
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "copy";
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            const code = e.dataTransfer.getData("application/x-component");
-            const comp = compByCode.get(code);
-            if (!comp || !graphRef.current) return;
-            const local = graphRef.current.clientToLocal(e.clientX, e.clientY);
-            addComponentAt(comp, local.x - NODE_W / 2, local.y - 20);
-          }}
-        >
-          <div ref={containerRef} className="h-full" />
+
+          {/* 工具栏第二行：画布上下文（统计 + 连线图例 + 缩放控制） */}
+          <div className="flex h-9 items-center gap-3 border-b border-border px-3 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              节点
+              <span className="rounded bg-muted px-1 font-mono tabular-nums text-foreground/80">{nodeCount}</span>
+            </span>
+            <span className="flex items-center gap-1.5">
+              连线
+              <span className="rounded bg-muted px-1 font-mono tabular-nums text-foreground/80">{edgeCount}</span>
+            </span>
+
+            <div aria-hidden className="h-4 w-px bg-border" />
+
+            <span className="flex items-center gap-1.5" title="控制流：实线，决定执行顺序">
+              <span aria-hidden className="inline-block w-6 border-t-2 border-teal-600" />
+              控制流
+            </span>
+            <span className="flex items-center gap-1.5" title="数据流：虚线，绑定上游输出到输入参数">
+              <span aria-hidden className="inline-block w-6 border-t-2 border-dashed border-blue-500" />
+              数据流
+            </span>
+
+            <div className="ml-auto flex items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground"
+                onClick={() => zoomBy(-0.1)}
+                title="缩小"
+              >
+                <ZoomOut className="h-3.5 w-3.5" />
+              </Button>
+              <span className="w-11 text-center font-mono text-[11px] tabular-nums">{zoomPct}%</span>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground"
+                onClick={() => zoomBy(0.1)}
+                title="放大"
+              >
+                <ZoomIn className="h-3.5 w-3.5" />
+              </Button>
+              <div aria-hidden className="mx-1 h-4 w-px bg-border" />
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 text-muted-foreground"
+                onClick={fitView}
+                title="适配视图"
+              >
+                <Maximize2 className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* 画布 */}
           <div
-            ref={minimapRef}
-            className="absolute bottom-2.5 right-2.5 z-10 overflow-hidden rounded-md border border-border bg-white/95 shadow-md"
+            className="flow-editor relative min-h-0 flex-1"
+            onDragOver={(e) => {
+              e.preventDefault();
+              e.dataTransfer.dropEffect = "copy";
+            }}
+            onDrop={(e) => {
+              e.preventDefault();
+              const code = e.dataTransfer.getData("application/x-component");
+              const comp = compByCode.get(code);
+              if (!comp || !graphRef.current) return;
+              const local = graphRef.current.clientToLocal(e.clientX, e.clientY);
+              addComponentAt(comp, local.x - NODE_W / 2, local.y - 20);
+            }}
+          >
+            <div ref={containerRef} className="h-full" />
+
+            {/* 工业 HMI 角标装饰（纯 CSS，不拦截事件） */}
+            <div aria-hidden className="pointer-events-none absolute inset-2 z-[5]">
+              <span className="absolute left-0 top-0 h-3.5 w-3.5 border-l-2 border-t-2 border-teal-600/25" />
+              <span className="absolute right-0 top-0 h-3.5 w-3.5 border-r-2 border-t-2 border-teal-600/25" />
+              <span className="absolute bottom-0 left-0 h-3.5 w-3.5 border-b-2 border-l-2 border-teal-600/25" />
+              <span className="absolute bottom-0 right-0 h-3.5 w-3.5 border-b-2 border-r-2 border-teal-600/25" />
+            </div>
+
+            {/* 导航小地图 */}
+            <div className="absolute bottom-3 right-3 z-10 overflow-hidden rounded-md border border-border bg-card shadow-lg">
+              <div className="flex h-5 items-center gap-1 border-b border-border bg-muted/70 px-2 text-[10px] font-medium text-muted-foreground">
+                <MapIcon className="h-2.5 w-2.5" />
+                导航
+              </div>
+              <div ref={minimapRef} className="[&>svg]:block" />
+            </div>
+          </div>
+
+          {/* 底部状态栏 */}
+          <FlowStatusBar
+            running={running}
+            flowName={flowName}
+            nodeCount={nodeCount}
+            edgeCount={edgeCount}
+            zoomPct={zoomPct}
           />
+        </div>
+
+        {/* ===== 右侧：参数 / 运行 ===== */}
+        <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm">
+          <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as "params" | "run")}>
+            <TabsList className="w-full rounded-none border-b border-border">
+              <TabsTrigger value="params" className="flex-1">参数配置</TabsTrigger>
+              <TabsTrigger value="run" className="flex-1">运行日志</TabsTrigger>
+            </TabsList>
+          </Tabs>
+
+          {rightTab === "params" ? (
+            <div className="flex-1 overflow-y-auto scrollbar-thin p-3">
+              {!selectedNode || !compOfSelected ? (
+                <ParamsEmptyGuide />
+              ) : (
+                renderNodeConfig()
+              )}
+            </div>
+          ) : (
+            <div className="flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
+              {!runResult ? (
+                <p className="pt-8 text-center text-xs text-muted-foreground">尚未运行；点击「运行（仿真）」执行当前流程</p>
+              ) : (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={runResult.state === "SUCCESS" ? "default" : "destructive"}>
+                      {runResult.state === "SUCCESS" ? "执行成功" : "执行失败"}
+                    </Badge>
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                      <Clock className="h-3 w-3" /> {runResult.durationMs}ms
+                    </span>
+                    <Button variant="outline" size="sm" className="ml-auto h-6 px-2 text-[10px]" onClick={replayRun}>
+                      <Play className="mr-1 h-3 w-3" /> 画布回放
+                    </Button>
+                  </div>
+                  {runResult.error && (
+                    <p className="rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">{runResult.error}</p>
+                  )}
+                  {runResult.logs.map((log, i) => (
+                    <div
+                      key={`${log.nodeId}-${i}`}
+                      className={`rounded-md border p-2.5 text-xs transition-colors ${
+                        activeLog === log.nodeId
+                          ? "border-primary bg-accent"
+                          : log.state === "SUCCESS"
+                            ? "border-border"
+                            : "border-destructive/50 bg-destructive/5"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{log.name}</span>
+                        <span className="text-muted-foreground">{log.durationMs}ms</span>
+                      </div>
+                      {Object.entries(log.inputs).map(([k, v]) => (
+                        <p key={k} className="mt-1 text-muted-foreground">
+                          <span className="font-mono">{k}</span> = {fmtValue(v.value)}
+                          <span className="ml-1 opacity-70">（{v.source}）</span>
+                        </p>
+                      ))}
+                      {Object.entries(log.outputs).map(([k, v]) => (
+                        <p key={k} className="mt-0.5 text-foreground/80">
+                          → <span className="font-mono">{k}</span> = {fmtValue(v)}
+                        </p>
+                      ))}
+                      {log.error && <p className="mt-1 text-destructive">{log.error}</p>}
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ===== 右侧：参数 / 运行 ===== */}
-      <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as "params" | "run")}>
-          <TabsList className="w-full rounded-none border-b border-border">
-            <TabsTrigger value="params" className="flex-1">参数配置</TabsTrigger>
-            <TabsTrigger value="run" className="flex-1">运行日志</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        {rightTab === "params" ? (
-          <div className="flex-1 overflow-y-auto scrollbar-thin p-3">
-            {!selectedNode || !compOfSelected ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
-                <Square className="h-6 w-6 opacity-30" />
-                点击画布中的节点编辑参数
-              </div>
-            ) : (
-              renderNodeConfig()
-            )}
-          </div>
-        ) : (
-          <div className="flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
-            <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-              <DialogContent className="max-h-[82vh] overflow-y-auto sm:max-w-lg">
-                <DialogHeader>
-                  <DialogTitle className="text-base">
-                    节点设置
-                    {selectedNode ? (
-                      <span className="ml-2 text-sm font-normal text-muted-foreground">
-                        {selectedNode.getData<EditorNodeData>().name}
-                      </span>
-                    ) : null}
-                  </DialogTitle>
-                </DialogHeader>
-                {selectedNode && compOfSelected ? (
-                  renderNodeConfig()
-                ) : (
-                  <p className="text-xs text-muted-foreground">请先选择节点</p>
-                )}
-              </DialogContent>
-            </Dialog>
-            {!runResult ? (
-              <p className="pt-8 text-center text-xs text-muted-foreground">尚未运行；点击「运行（仿真）」执行当前流程</p>
-            ) : (
-              <>
-                <div className="flex items-center gap-2">
-                  <Badge variant={runResult.state === "SUCCESS" ? "default" : "destructive"}>
-                    {runResult.state === "SUCCESS" ? "执行成功" : "执行失败"}
-                  </Badge>
-                  <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="h-3 w-3" /> {runResult.durationMs}ms
-                  </span>
-                  <Button variant="outline" size="sm" className="ml-auto h-6 px-2 text-[10px]" onClick={replayRun}>
-                    <Play className="mr-1 h-3 w-3" /> 画布回放
-                  </Button>
-                </div>
-                {runResult.error && (
-                  <p className="rounded-md bg-destructive/10 px-2.5 py-2 text-xs text-destructive">{runResult.error}</p>
-                )}
-                {runResult.logs.map((log, i) => (
-                  <div
-                    key={`${log.nodeId}-${i}`}
-                    className={`rounded-md border p-2.5 text-xs transition-colors ${
-                      activeLog === log.nodeId
-                        ? "border-primary bg-accent"
-                        : log.state === "SUCCESS"
-                          ? "border-border"
-                          : "border-destructive/50 bg-destructive/5"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <span className="font-medium">{log.name}</span>
-                      <span className="text-muted-foreground">{log.durationMs}ms</span>
-                    </div>
-                    {Object.entries(log.inputs).map(([k, v]) => (
-                      <p key={k} className="mt-1 text-muted-foreground">
-                        <span className="font-mono">{k}</span> = {fmtValue(v.value)}
-                        <span className="ml-1 opacity-70">（{v.source}）</span>
-                      </p>
-                    ))}
-                    {Object.entries(log.outputs).map(([k, v]) => (
-                      <p key={k} className="mt-0.5 text-foreground/80">
-                        → <span className="font-mono">{k}</span> = {fmtValue(v)}
-                      </p>
-                    ))}
-                    {log.error && <p className="mt-1 text-destructive">{log.error}</p>}
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+      {/* 双击节点设置弹窗（顶层渲染，任何 Tab 下均可打开；表单与右侧面板共用） */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="max-h-[82vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              {selectedNode && (
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ background: selectedNode.getData<EditorNodeData>()?.color }}
+                />
+              )}
+              节点设置
+              {selectedNode ? (
+                <span className="text-sm font-normal text-muted-foreground">
+                  {selectedNode.getData<EditorNodeData>()?.name}
+                </span>
+              ) : null}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedNode && compOfSelected ? (
+            renderNodeConfig()
+          ) : (
+            <p className="text-xs text-muted-foreground">请先选择节点</p>
+          )}
+        </DialogContent>
+      </Dialog>
+    </TooltipProvider>
   );
 }
 

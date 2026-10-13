@@ -39,3 +39,13 @@ class AiChatSessionRename(BaseModel):
 class AiChatSend(BaseModel):
     content: str
     stream: bool = True
+
+
+class MetamodelDraftRequest(BaseModel):
+    """AI 生成元模型草稿请求。"""
+
+    model_config = ConfigDict(protected_namespaces=())
+
+    description: str
+    # MECHANISM / DATA_MODEL / ALGORITHM / KNOWLEDGE_RULE，可空由 AI 判断
+    model_type: Optional[str] = None

@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import {
+  Bot,
   Database,
   Network,
   Workflow,
@@ -80,6 +81,16 @@ export const navConfig: NavGroup[] = [
         label: "驾驶舱中心",
         href: "/cockpit",
         icon: LayoutDashboard,
+      },
+    ],
+  },
+  {
+    title: "智能助手",
+    items: [
+      {
+        label: "AI 智能助手",
+        href: "/assistant",
+        icon: Bot,
       },
     ],
   },
