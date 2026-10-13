@@ -8,6 +8,7 @@ backend/uploads/
 # Database (regenerable via seed / import scripts)
 backend/carbonops.db
 backend/*.db
+backend/backups/
 
 # Node / Next.js
 frontend/node_modules/
