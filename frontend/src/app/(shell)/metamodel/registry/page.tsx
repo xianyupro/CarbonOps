@@ -28,8 +28,10 @@ import type {
   MetamodelFacets,
   MetamodelIoParam,
   MetamodelPayload,
+  MetamodelReference,
   MetamodelRelation,
   MetamodelType,
+  MetamodelValidationMetric,
 } from "@/types/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -108,6 +110,10 @@ function emptyForm(modelType: MetamodelType): MetamodelPayload {
     deployCombination: "",
     validationBaseline: "",
     validationLimits: "",
+    validationMetrics: [],
+    uncertainty: "",
+    trainingData: "",
+    references: [],
     status: "DEVELOPING",
     industry: "有色",
     processStage: "",
@@ -405,13 +411,36 @@ export default function MetamodelRegistryPage() {
             </Section>
 
             <Section title="七、验证与确认">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Field label="基准 / 交叉"><Textarea rows={2} value={form.validationBaseline ?? ""} onChange={(e) => set("validationBaseline", e.target.value)} /></Field>
-                <Field label="极限 / 确认"><Textarea rows={2} value={form.validationLimits ?? ""} onChange={(e) => set("validationLimits", e.target.value)} /></Field>
+              <div className="space-y-4">
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="基准 / 交叉"><Textarea rows={2} value={form.validationBaseline ?? ""} onChange={(e) => set("validationBaseline", e.target.value)} /></Field>
+                  <Field label="极限 / 确认"><Textarea rows={2} value={form.validationLimits ?? ""} onChange={(e) => set("validationLimits", e.target.value)} /></Field>
+                </div>
+                <Field label="量化验证指标（RMSE / R² / MAPE …）">
+                  <ValidationMetricEditor
+                    rows={form.validationMetrics ?? []}
+                    onChange={(rows) => set("validationMetrics", rows)}
+                  />
+                </Field>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <Field label="不确定度 / 置信水平">
+                    <Textarea rows={2} value={form.uncertainty ?? ""} onChange={(e) => set("uncertainty", e.target.value)} placeholder="如：95% 置信区间 RMSE ±0.4 ℃（bootstrap 1000 次）；外推域不保证精度" />
+                  </Field>
+                  <Field label="训练与验证数据来源">
+                    <Textarea rows={2} value={form.trainingData ?? ""} onChange={(e) => set("trainingData", e.target.value)} placeholder="如：数据基座「1号挥发窑（现场数据）」；训练/验证按 7:3 时序切分" />
+                  </Field>
+                </div>
               </div>
             </Section>
 
-            <Section title="八、版本记录">
+            <Section title="八、参考文献">
+              <ReferenceEditor
+                rows={form.references ?? []}
+                onChange={(rows) => set("references", rows)}
+              />
+            </Section>
+
+            <Section title="九、版本记录">
               <Field label="登记说明（写入版本记录）">
                 <Input value={form.initialChangelog ?? ""} onChange={(e) => set("initialChangelog", e.target.value)} />
               </Field>
@@ -586,7 +615,8 @@ function IoParamEditor({
           <tr className="border-b border-border bg-muted/50 text-left text-xs text-muted-foreground">
             <th className="px-2 py-2 font-medium">类别</th>
             <th className="px-2 py-2 font-medium">变量名/符号</th>
-            <th className="px-2 py-2 font-medium">类型/维度</th>
+            <th className="px-2 py-2 font-medium">类型</th>
+            <th className="px-2 py-2 font-medium">维度</th>
             <th className="px-2 py-2 font-medium">单位</th>
             <th className="px-2 py-2 font-medium">范围/必需性</th>
             <th className="px-2 py-2 font-medium">例值/缺省</th>
@@ -607,6 +637,7 @@ function IoParamEditor({
               </td>
               <td className="px-2 py-1.5"><Input className="h-8" value={r.symbol} onChange={(e) => update(i, { symbol: e.target.value })} /></td>
               <td className="px-2 py-1.5"><Input className="h-8" value={r.dtype} onChange={(e) => update(i, { dtype: e.target.value })} placeholder="float; 标量" /></td>
+              <td className="px-2 py-1.5"><Input className="h-8 w-16" value={r.dim ?? "1"} onChange={(e) => update(i, { dim: e.target.value })} /></td>
               <td className="px-2 py-1.5"><Input className="h-8 w-20" value={r.unit ?? ""} onChange={(e) => update(i, { unit: e.target.value })} /></td>
               <td className="px-2 py-1.5"><Input className="h-8" value={r.rangeRequired ?? ""} onChange={(e) => update(i, { rangeRequired: e.target.value })} placeholder=">0；必需" /></td>
               <td className="px-2 py-1.5"><Input className="h-8" value={r.exampleDefault ?? ""} onChange={(e) => update(i, { exampleDefault: e.target.value })} /></td>
@@ -620,7 +651,7 @@ function IoParamEditor({
           ))}
           {rows.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-2 py-6 text-center text-xs text-muted-foreground">
+              <td colSpan={9} className="px-2 py-6 text-center text-xs text-muted-foreground">
                 暂无变量定义，点击下方按钮添加
               </td>
             </tr>
@@ -641,6 +672,132 @@ function IoParamEditor({
           <Plus className="mr-1 h-4 w-4" /> 添加变量
         </Button>
       </div>
+    </div>
+  );
+}
+
+function ValidationMetricEditor({
+  rows,
+  onChange,
+}: {
+  rows: MetamodelValidationMetric[];
+  onChange: (rows: MetamodelValidationMetric[]) => void;
+}) {
+  function update(i: number, patch: Partial<MetamodelValidationMetric>) {
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  }
+  return (
+    <div className="space-y-2">
+      {rows.map((r, i) => (
+        <div key={i} className="rounded-md border border-border p-3">
+          <div className="flex flex-wrap gap-2">
+            <Input
+              className="w-28 font-mono text-xs"
+              value={r.metric}
+              onChange={(e) => update(i, { metric: e.target.value })}
+              placeholder="RMSE / R2 / MAPE"
+            />
+            <Input
+              className="w-24 font-cyber text-xs tabular-nums"
+              value={r.value}
+              onChange={(e) => update(i, { value: Number(e.target.value) || 0 })}
+              placeholder="数值"
+            />
+            <Input
+              className="w-20 text-xs"
+              value={r.unit ?? ""}
+              onChange={(e) => update(i, { unit: e.target.value })}
+              placeholder="℃ / %"
+            />
+            <Input
+              className="min-w-[180px] flex-1 text-xs"
+              value={r.dataset ?? ""}
+              onChange={(e) => update(i, { dataset: e.target.value })}
+              placeholder="验证数据集说明（如：留出验证段 2.4 天）"
+            />
+            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => onChange(rows.filter((_, j) => j !== i))}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <Input
+            className="mt-2 text-xs"
+            value={r.note ?? ""}
+            onChange={(e) => update(i, { note: e.target.value })}
+            placeholder="指标说明（可选，如：对比人工操作基线 8.9 ℃）"
+          />
+        </div>
+      ))}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onChange([...rows, { metric: "", value: 0, unit: "", dataset: "", note: "" }])}
+      >
+        <Plus className="mr-1 h-4 w-4" /> 添加验证指标
+      </Button>
+    </div>
+  );
+}
+
+function ReferenceEditor({
+  rows,
+  onChange,
+}: {
+  rows: MetamodelReference[];
+  onChange: (rows: MetamodelReference[]) => void;
+}) {
+  function update(i: number, patch: Partial<MetamodelReference>) {
+    onChange(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  }
+  return (
+    <div className="space-y-2">
+      {rows.map((r, i) => (
+        <div key={i} className="rounded-md border border-border p-3">
+          <div className="flex flex-wrap gap-2">
+            <Input
+              className="min-w-[220px] flex-1 text-xs"
+              value={r.authors}
+              onChange={(e) => update(i, { authors: e.target.value })}
+              placeholder="作者（如：M. Raissi, P. Perdikaris, G. E. Karniadakis）"
+            />
+            <Input
+              className="w-20 text-xs"
+              value={r.year ?? ""}
+              onChange={(e) => update(i, { year: Number(e.target.value) || undefined })}
+              placeholder="年份"
+            />
+            <Button variant="ghost" size="icon" className="shrink-0" onClick={() => onChange(rows.filter((_, j) => j !== i))}>
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Input
+              className="min-w-[260px] flex-1 text-xs"
+              value={r.title}
+              onChange={(e) => update(i, { title: e.target.value })}
+              placeholder="文献标题 / 报告名 / 标准号"
+            />
+            <Input
+              className="min-w-[180px] flex-1 text-xs"
+              value={r.venue}
+              onChange={(e) => update(i, { venue: e.target.value })}
+              placeholder="出处（期刊 / 会议 / 报告 / 标准）"
+            />
+            <Input
+              className="w-52 font-mono text-xs"
+              value={r.doi ?? ""}
+              onChange={(e) => update(i, { doi: e.target.value })}
+              placeholder="DOI（选填）"
+            />
+          </div>
+        </div>
+      ))}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onChange([...rows, { authors: "", title: "", venue: "", year: undefined, doi: "" }])}
+      >
+        <Plus className="mr-1 h-4 w-4" /> 添加文献
+      </Button>
     </div>
   );
 }

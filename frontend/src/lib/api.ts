@@ -69,6 +69,7 @@ import type {
   KgNodeCreatePayload,
   KgNodeDetail,
   KgPathResult,
+  KgSubgraph,
   ComponentDef,
   ComponentRegistry,
   ScreenConfigItem,
@@ -493,6 +494,9 @@ export const api = {
       request<MetamodelVersion[]>("GET", `/metamodels/${id}/versions`),
     createVersion: (id: number, body: { versionNo: string; changelog?: string }) =>
       request<MetamodelVersion>("POST", `/metamodels/${id}/versions`, { body }),
+    /** 关联图谱一跳邻域（后端按 kg_links 反查，替代全量拉图） */
+    kgNeighborhood: (id: number) =>
+      request<KgSubgraph>("GET", `/metamodels/${id}/kg-neighborhood`),
     importJson: (metamodels: Record<string, unknown>[]) =>
       request<{ created: number; updated: number }>("POST", "/metamodels/import", {
         body: { metamodels },

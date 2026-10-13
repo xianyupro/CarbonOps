@@ -13,8 +13,10 @@ import {
   Code2,
   Copy,
   Download,
+  FileDown,
   FilePlus2,
   FileUp,
+  Landmark,
   Layers,
   Loader2,
   Quote,
@@ -23,17 +25,19 @@ import {
 } from "lucide-react";
 
 import { api } from "@/lib/api";
+import { bibtexCitation, formatRefGB, gbtCitation, referencesBibtex } from "@/lib/citation";
 import type {
-  KgGraph,
   Metamodel,
   MetamodelDetail,
   MetamodelFacets,
+  MetamodelReference,
   MetamodelType,
 } from "@/types/api";
 import KnowledgeGraphCanvas, {
   GraphEdge,
   GraphNode,
 } from "@/components/kg/knowledge-graph-canvas";
+import { FormulaBlock } from "@/components/metamodel/formula-block";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -380,6 +384,9 @@ function ModelCard({ m, onOpen }: { m: Metamodel; onOpen: () => void }) {
       <div className="mt-3 flex items-center gap-3 border-t border-border/60 pt-2 font-cyber text-[10px] text-muted-foreground">
         <span>v{m.versionNo}</span>
         <span>{m.industry}</span>
+        {(m.references?.length ?? 0) > 0 && (
+          <span className="text-primary/80">REF {String(m.references!.length).padStart(2, "0")}</span>
+        )}
         <span className="ml-auto">CALL {String(m.callCount).padStart(3, "0")}</span>
         {m.accuracy != null && (
           <span className="text-primary">ACC {(m.accuracy * 100).toFixed(0)}%</span>
@@ -392,23 +399,33 @@ function ModelCard({ m, onOpen }: { m: Metamodel; onOpen: () => void }) {
 /* ============ 学术模型卡详情 ============ */
 
 function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
-  const [copied, setCopied] = React.useState(false);
-  const citation = `${detail.metaCode}. ${detail.name}: ${
-    TYPE_LABEL[detail.modelType] ?? "元模型"
-  } v${detail.versionNo}[EB/OL]. 元模型学术检索中心, ${detail.createdAt?.slice(0, 4) ?? "2026"}.`;
+  const citation = gbtCitation(detail);
 
-  async function copyCitation() {
+  async function copyText(text: string, okMsg = "已复制到剪贴板") {
     try {
-      await navigator.clipboard.writeText(citation.trim());
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1600);
+      await navigator.clipboard.writeText(text);
+      toast.success(okMsg);
     } catch {
       toast.error("复制失败");
     }
   }
 
+  function downloadBibtex() {
+    const content = [bibtexCitation(detail), referencesBibtex(detail)]
+      .filter(Boolean)
+      .join("\n\n");
+    const blob = new Blob([content], { type: "application/x-bibtex;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${detail.metaCode}.bib`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
   return (
     <div className="space-y-5 p-6">
+      {/* 论文式题头：双线 + 作者/单位行 + 引用框 */}
       <header className="border-b-2 border-foreground/80 pb-4">
         <div className="flex flex-wrap items-center gap-2">
           <Badge variant="secondary">{TYPE_LABEL[detail.modelType]}</Badge>
@@ -416,28 +433,47 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
             {STATUS_LABEL[detail.status]}
           </Badge>
           <span className="font-cyber text-[11px] text-muted-foreground">
-            {detail.metaCode} · v{detail.versionNo} · {detail.createdAt?.slice(0, 10)}
+            {detail.metaCode} · v{detail.versionNo} · 登记于 {detail.createdAt?.slice(0, 10)}
           </span>
         </div>
         <h2 className="mt-2 text-xl font-bold leading-snug">{detail.name}</h2>
-        <p className="mt-1 font-cyber text-[11px] text-muted-foreground">
-          {detail.domain}
-          {detail.processStage ? ` · ${detail.processStage}` : ""} ·{" "}
-          {detail.authorMaintainer || detail.sourceOwnership || "平台登记"}
+        <p className="mt-1 flex flex-wrap items-center gap-x-1.5 font-cyber text-[11px] text-muted-foreground">
+          <Landmark className="h-3 w-3 shrink-0" />
+          <span className="text-foreground/80">{detail.provider || "提供单位未登记"}</span>
+          <span className="text-muted-foreground/50">·</span>
+          <span>{detail.authorMaintainer || detail.sourceOwnership || "平台登记"}</span>
+          <span className="text-muted-foreground/50">·</span>
+          <span>
+            {detail.domain}
+            {detail.processStage ? ` · ${detail.processStage}` : ""}
+          </span>
         </p>
         <div className="mt-3 flex items-start gap-2 bg-muted/50 p-2.5">
           <Quote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
           <p className="min-w-0 flex-1 break-all font-cyber text-[10px] leading-relaxed text-muted-foreground">
-            {citation.trim()}
+            {citation}
           </p>
-          <Button variant="ghost" size="sm" className="h-6 shrink-0 px-2 text-[10px]" onClick={copyCitation}>
-            {copied ? "已复制" : <Copy className="h-3 w-3" />}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-2 text-[10px]"
+            onClick={() => copyText(citation)}
+          >
+            <Copy className="h-3 w-3" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 shrink-0 px-2 text-[10px]"
+            onClick={() => copyText(bibtexCitation(detail), "BibTeX 已复制")}
+          >
+            BibTeX
           </Button>
         </div>
       </header>
 
       {detail.purpose && (
-        <Section title="摘 要">
+        <Section no="01" title="摘 要">
           <p className="text-sm leading-relaxed">{detail.purpose}</p>
           {(detail.keywords?.length ?? 0) > 0 && (
             <div className="mt-2 flex flex-wrap gap-1.5">
@@ -452,7 +488,7 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
       )}
 
       {(detail.sceneDomain || detail.assumptions || detail.limitsPrecision) && (
-        <Section title="适用范围与前提">
+        <Section no="02" title="适用范围与前提">
           <dl className="space-y-1.5 text-xs">
             <Row k="场景/有效域" v={detail.sceneDomain} />
             <Row k="假设/边界" v={detail.assumptions} />
@@ -462,7 +498,7 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
       )}
 
       {(detail.structureFlow?.length || detail.coreRelations?.length) ? (
-        <Section title="结构与核心关系">
+        <Section no="03" title="结构与核心关系">
           {detail.structureFlow?.length ? (
             <div className="mb-3 flex flex-wrap items-center gap-1.5">
               {detail.structureFlow.map((s, i) => (
@@ -479,18 +515,14 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
           ) : null}
           <div className="space-y-2">
             {(detail.coreRelations ?? []).map((r, i) => (
-              <div key={i} className="border-l-2 border-primary bg-muted/40 py-2 pl-3">
-                <span className="font-cyber text-xs font-bold text-primary">{r.id}</span>
-                <p className="mt-1 break-all font-cyber text-xs leading-relaxed">{r.expression}</p>
-                {r.note && <p className="mt-1 text-[11px] text-muted-foreground">{r.note}</p>}
-              </div>
+              <FormulaBlock key={i} id={r.id} expression={r.expression} note={r.note} />
             ))}
           </div>
         </Section>
       ) : null}
 
       {detail.ioParams?.length ? (
-        <Section title="变量与参数定义">
+        <Section no="04" title="变量与参数定义">
           <div className="overflow-x-auto border border-border">
             <table className="w-full text-xs">
               <thead>
@@ -498,8 +530,10 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
                   <th className="px-2 py-1.5">类别</th>
                   <th className="px-2 py-1.5">符号</th>
                   <th className="px-2 py-1.5">类型</th>
+                  <th className="px-2 py-1.5">维度</th>
                   <th className="px-2 py-1.5">单位</th>
                   <th className="px-2 py-1.5">范围/必需</th>
+                  <th className="px-2 py-1.5">例值/缺省</th>
                   <th className="px-2 py-1.5">来源/含义</th>
                 </tr>
               </thead>
@@ -509,8 +543,10 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
                     <td className="px-2 py-1.5">{p.category}</td>
                     <td className="px-2 py-1.5 font-cyber">{p.symbol}</td>
                     <td className="px-2 py-1.5">{p.dtype}</td>
+                    <td className="px-2 py-1.5 font-cyber tabular-nums">{p.dim || "—"}</td>
                     <td className="px-2 py-1.5">{p.unit || "—"}</td>
                     <td className="px-2 py-1.5">{p.rangeRequired || "—"}</td>
+                    <td className="px-2 py-1.5 font-cyber tabular-nums">{p.exampleDefault || "—"}</td>
                     <td className="px-2 py-1.5">{p.sourceMeaning || "—"}</td>
                   </tr>
                 ))}
@@ -521,7 +557,7 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
       ) : null}
 
       {(detail.methodFlow || detail.entryInterface || detail.exceptionBehavior) && (
-        <Section title="计算、推理与接口">
+        <Section no="05" title="计算、推理与接口">
           <dl className="space-y-1.5 text-xs">
             <Row k="方法/流程" v={detail.methodFlow} />
             <Row k="入口/响应" v={detail.entryInterface} mono />
@@ -530,19 +566,101 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
         </Section>
       )}
 
-      {(detail.validationBaseline || detail.validationLimits) && (
-        <Section title="验证与确认">
+      {(detail.validationBaseline ||
+        detail.validationLimits ||
+        detail.uncertainty ||
+        detail.trainingData ||
+        (detail.validationMetrics?.length ?? 0) > 0) && (
+        <Section no="06" title="验证与确认">
+          {(detail.validationMetrics?.length ?? 0) > 0 && (
+            <div className="mb-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {detail.validationMetrics!.map((vm, i) => (
+                <div key={i} className="border border-border bg-muted/30 px-3 py-2">
+                  <p className="font-cyber text-[10px] uppercase tracking-wider text-muted-foreground">
+                    {vm.metric}
+                  </p>
+                  <p className="mt-0.5 font-cyber text-lg font-semibold tabular-nums">
+                    {vm.value}
+                    {vm.unit ? (
+                      <span className="ml-0.5 text-xs font-normal text-muted-foreground">{vm.unit}</span>
+                    ) : null}
+                  </p>
+                  {vm.dataset && (
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground/80">
+                      {vm.dataset}
+                    </p>
+                  )}
+                  {vm.note && (
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">{vm.note}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
           <dl className="space-y-1.5 text-xs">
             <Row k="基准/交叉" v={detail.validationBaseline} />
             <Row k="极限/确认" v={detail.validationLimits} />
+            <Row k="不确定度" v={detail.uncertainty} />
+            <Row k="数据溯源" v={detail.trainingData} />
           </dl>
         </Section>
       )}
 
-      <MetamodelKgMini metamodelId={detail.id} />
+      <MetamodelKgMini metamodel={detail} />
+
+      {(detail.references?.length ?? 0) > 0 && (
+        <Section no="07" title="参考文献">
+          <ol className="space-y-1.5">
+            {detail.references!.map((r: MetamodelReference, i) => (
+              <li key={i} className="group flex items-start gap-2 text-xs leading-relaxed">
+                <span className="mt-px shrink-0 font-cyber text-[10px] text-muted-foreground/70">
+                  [{i + 1}]
+                </span>
+                <span className="min-w-0 flex-1 break-words">
+                  {formatRefGB(r)}
+                  {r.doi && (
+                    <a
+                      className="ml-1 text-primary/80 underline decoration-dotted"
+                      href={`https://doi.org/${r.doi}`}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {r.doi}
+                    </a>
+                  )}
+                </span>
+                <button
+                  className="mt-px shrink-0 text-muted-foreground/40 opacity-0 transition-opacity hover:text-foreground group-hover:opacity-100"
+                  title="复制该条著录"
+                  onClick={() => copyText(formatRefGB(r), "著录已复制")}
+                >
+                  <Copy className="h-3 w-3" />
+                </button>
+              </li>
+            ))}
+          </ol>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                copyText(
+                  detail.references!.map((r, i) => `[${i + 1}] ${formatRefGB(r)}`).join("\n"),
+                  "全部著录已复制"
+                )
+              }
+            >
+              <Copy className="mr-1 h-3 w-3" /> 复制全部著录
+            </Button>
+            <Button variant="outline" size="sm" onClick={downloadBibtex}>
+              <FileDown className="mr-1 h-3 w-3" /> 导出 BibTeX
+            </Button>
+          </div>
+        </Section>
+      )}
 
       {(detail.versions?.length ?? 0) > 0 && (
-        <Section title="版本谱系">
+        <Section no="08" title="版本谱系">
           <ol className="space-y-2 border-l border-border pl-4">
             {detail.versions!.map((v) => (
               <li key={v.id} className="relative text-xs">
@@ -561,59 +679,99 @@ function ModelCardDetail({ detail }: { detail: MetamodelDetail }) {
   );
 }
 
-/* ============ 关联知识图谱小图 ============ */
+/* ============ 关联知识图谱小图（一跳邻域专用端点 + 一键注册） ============ */
 
-function MetamodelKgMini({ metamodelId }: { metamodelId: number }) {
+function MetamodelKgMini({ metamodel }: { metamodel: Metamodel }) {
   const [data, setData] = React.useState<{
     nodes: GraphNode[];
     edges: GraphEdge[];
-    centerName: string;
+    centerIds: number[];
   } | null>(null);
   const [missing, setMissing] = React.useState(false);
+  const [registering, setRegistering] = React.useState(false);
+  const boxRef = React.useRef<HTMLDivElement>(null);
+  const [canvasWidth, setCanvasWidth] = React.useState(496);
+
+  const loadNeighborhood = React.useCallback(async () => {
+    try {
+      const g = await api.metamodels.kgNeighborhood(metamodel.id);
+      if (!g.nodes?.length) {
+        setMissing(true);
+        setData(null);
+        return;
+      }
+      setMissing(false);
+      setData({
+        nodes: g.nodes.map((n) => ({ ...n, color: undefined })),
+        edges: g.edges.map((e) => ({ ...e, source: e.sourceNodeId, target: e.targetNodeId })),
+        centerIds: g.centerIds ?? [],
+      });
+    } catch {
+      setMissing(true);
+    }
+  }, [metamodel.id]);
 
   React.useEffect(() => {
-    let stopped = false;
-    api.kg
-      .graph()
-      .then((g: KgGraph) => {
-        if (stopped) return;
-        const center = g.nodes.find(
-          (n) => n.refType === "METAMODEL" && n.refId === metamodelId
-        );
-        if (!center) {
-          setMissing(true);
-          return;
+    setData(null);
+    loadNeighborhood();
+  }, [loadNeighborhood]);
+
+  // 画布宽度自适应容器
+  React.useEffect(() => {
+    const el = boxRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width;
+      if (w && w > 120) setCanvasWidth(Math.floor(w));
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [missing, data]);
+
+  async function registerToGraph() {
+    setRegistering(true);
+    try {
+      const node = await api.kg.createNode({
+        name: metamodel.name,
+        category: "元模型",
+        description: `${metamodel.metaCode}：${(metamodel.purpose || "").slice(0, 120)}`,
+        refType: "METAMODEL",
+        refId: metamodel.id,
+      });
+      // 尽力挂「适用于」回转挥发窑节点（无则跳过，不影响注册）
+      try {
+        const hits = await api.kg.search("回转挥发窑");
+        const kiln = hits.find((n) => n.category === "设备");
+        if (kiln) {
+          await api.kg.createEdge({
+            sourceNodeId: node.id,
+            targetNodeId: kiln.id,
+            relationType: "适用于",
+          });
         }
-        const neighborIds = new Set<number>([center.id]);
-        const edges = g.edges.filter((e) => {
-          if (e.sourceNodeId === center.id) {
-            neighborIds.add(e.targetNodeId);
-            return true;
-          }
-          if (e.targetNodeId === center.id) {
-            neighborIds.add(e.sourceNodeId);
-            return true;
-          }
-          return false;
-        });
-        const nodes = g.nodes.filter((n) => neighborIds.has(n.id));
-        setData({
-          nodes: nodes.map((n) => ({ ...n, color: undefined })),
-          edges: edges.map((e) => ({ ...e, source: e.sourceNodeId, target: e.targetNodeId })),
-          centerName: center.name,
-        });
-      })
-      .catch(() => setMissing(true));
-    return () => {
-      stopped = true;
-    };
-  }, [metamodelId]);
+      } catch {
+        /* 边挂接失败不影响注册 */
+      }
+      toast.success("已注册到知识图谱");
+      await loadNeighborhood();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "注册失败");
+    } finally {
+      setRegistering(false);
+    }
+  }
 
   if (missing) {
     return (
-      <p className="rounded-md bg-muted/50 px-2.5 py-2 text-xs text-muted-foreground">
-        该元模型尚未注册到知识图谱（在「元模型平台·知识图谱」中按行业自动登记）
-      </p>
+      <div className="flex items-center justify-between gap-3 border border-dashed border-border bg-muted/40 px-3 py-2.5">
+        <p className="text-xs text-muted-foreground">
+          该元模型尚未注册到知识图谱——注册后可在图谱检索、路径查询与关联推荐中引用。
+        </p>
+        <Button variant="outline" size="sm" disabled={registering} onClick={registerToGraph}>
+          {registering ? <Loader2 className="mr-1 h-3 w-3 animate-spin" /> : null}
+          注册到图谱
+        </Button>
+      </div>
     );
   }
   if (!data) {
@@ -623,17 +781,20 @@ function MetamodelKgMini({ metamodelId }: { metamodelId: number }) {
       </div>
     );
   }
+  const centerName =
+    data.nodes.find((n) => data.centerIds.includes(n.id))?.name ?? metamodel.name;
   return (
-    <div className="overflow-hidden rounded-md border border-border">
+    <div ref={boxRef} className="overflow-hidden border border-border">
       <KnowledgeGraphCanvas
+        key={`${metamodel.id}-${canvasWidth}-${data.nodes.length}`}
         nodes={data.nodes}
         edges={data.edges}
-        width={496}
+        width={canvasWidth}
         height={210}
         selectedNodeId={null}
       />
       <p className="border-t border-border bg-muted/40 px-2.5 py-1 text-[10px] text-muted-foreground">
-        「{data.centerName}」的一跳关联 · {data.nodes.length} 节点 / {data.edges.length} 关系
+        「{centerName}」的一跳关联 · {data.nodes.length} 节点 / {data.edges.length} 关系
       </p>
     </div>
   );
@@ -641,10 +802,19 @@ function MetamodelKgMini({ metamodelId }: { metamodelId: number }) {
 
 /* ============ 通用小件 ============ */
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  no,
+  title,
+  children,
+}: {
+  no?: string;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section>
       <h3 className="mb-2 font-cyber text-[11px] font-bold uppercase tracking-[0.14em] text-foreground">
+        {no ? <span className="mr-1.5 text-muted-foreground/70">{no}</span> : null}
         {title}
       </h3>
       {children}

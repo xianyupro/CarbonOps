@@ -686,6 +686,24 @@ export interface MetamodelIoParam {
   sourceMeaning?: string;
 }
 
+/** 参考文献著录条目（GB/T 7714 素材） */
+export interface MetamodelReference {
+  authors: string;
+  title: string;
+  venue: string;
+  year?: number | null;
+  doi?: string | null;
+}
+
+/** 量化验证指标 */
+export interface MetamodelValidationMetric {
+  metric: string; // RMSE / MAE / R2 / MAPE ...
+  value: number;
+  unit?: string | null;
+  dataset?: string | null;
+  note?: string | null;
+}
+
 /** 元模型（按《元模型交付模板》8 节结构） */
 export interface Metamodel {
   id: number;
@@ -718,6 +736,10 @@ export interface Metamodel {
   deployCombination?: string | null;
   validationBaseline?: string | null;
   validationLimits?: string | null;
+  validationMetrics?: MetamodelValidationMetric[] | null;
+  uncertainty?: string | null;
+  trainingData?: string | null;
+  references?: MetamodelReference[] | null;
   status: ModelStatus;
   industry: string;
   processStage?: string | null;
@@ -832,6 +854,13 @@ export interface KgNodeCreatePayload {
   category: string;
   description?: string;
   sourceText?: string;
+  refType?: string | null;
+  refId?: number | null;
+}
+
+/** 图谱子图（一跳邻域端点额外返回 centerIds） */
+export interface KgSubgraph extends KgGraph {
+  centerIds?: number[];
 }
 
 // ===================== 组件平台 · 控制流 =====================
