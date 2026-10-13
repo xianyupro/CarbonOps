@@ -3,14 +3,18 @@
 /**
  * KilnTwin —— 1号回转挥发窑三维数字孪生（程序化几何 + 实时数据驱动）。
  *
- * 场景组成：回转窑筒体（轴向温度场着色）/ 滚圈+托轮 / 大齿圈 / 窑头罩+燃烧器火焰 /
- * 窑尾给料圆盘+料流 / 主传动（小齿轮与筒体联动反转）/ 窑头卸料→水淬池（渣流+蒸汽）/
- * 烟道→余热锅炉→电收尘→脱硫塔→引风机（叶轮旋转）→烟囱（烟气）。
- * 数据驱动：筒体转速∝主电机频率；给料盘与料流∝给料频率；火焰强度∝窑头温度；
- *          筒体轴向着色=温度场曲线（计算点01.Temp_01）。
- * 扩展能力：过温告警环（>1050℃ 脉冲红环）/ 球团仓落料 / 烟气流向粒子（橙→青渐变）/
- *          设备名称标签 / 相机预设视角飞行 / 自动巡游 / 温度场图例 /
- *          关键设备点击信息卡（窑头罩/给料圆盘/余热锅炉/电收尘/烟囱）/
+ * 场景组成（全流程）：球团料场 → 上料皮带机（大倾角，珠串料流）→ 球团仓 → 圆盘给料机 → 窑尾罩 →
+ * 回转窑筒体（轴向温度场着色）/ 滚圈+托轮+基础墩 / 大齿圈 / 主传动（小齿轮联动反转+支撑框架）/
+ * 窑头罩（支撑框架+检修平台栏杆斜梯 / 燃烧器小车轨道+一次风机风管 / 看火孔辉光）/
+ * 窑头卸料→水淬池（渣流+蒸汽+捞渣机+循环水泵）/
+ * 烟道支架 → 余热锅炉（受热面色带+灰斗+安全阀蒸汽+顶部栏杆+爬梯）→ 电收尘（绝缘子室+振打电机+
+ * 灰斗+集灰螺旋+卸灰溜槽+高压柜）→ 脱硫塔（石灰石浆液罐+氧化风机+喷淋环管）→ 引风机（叶轮旋转）→
+ * 烟囱（红白航空色环+检修平台+爬梯+航空障碍灯）+ CEMS 分析小屋 + 照明灯塔 + 厂区道路标线。
+ * 数据驱动：筒体转速∝主电机频率；给料盘/料流/皮带料珠/捞渣机∝给料频率；火焰与看火孔辉光∝窑头温度；
+ *          筒体轴向着色=温度场曲线（计算点01.Temp_01）；烟囱烟气与烟气流向粒子速率∝风机阀开度；
+ *          安全阀蒸汽∝锅筒压力；夜间模式照明灯塔点亮、航空障碍灯光晕增强。
+ * 扩展能力：过温告警环（>1050℃ 脉冲红环）/ 球团仓落料 / 烟气流向粒子（橙→青渐变）/ 设备名称标签 /
+ *          相机预设视角飞行 / 自动巡游 / 温度场图例 / 10 类关键设备点击信息卡 /
  *          透视模式窑内物料推移粒子（速度∝给料频率）/ 烟囱烟气淡入淡出柔和化。
  */
 
@@ -33,8 +37,18 @@ export interface KilnTelemetry {
 
 type TelemetryNumField = Exclude<keyof KilnTelemetry, "tempField">;
 
-/** 可点击设备 ID：窑头罩 / 圆盘给料机 / 余热锅炉 / 电收尘器 / 烟囱 */
-export type TwinDeviceId = "kilnHead" | "feeder" | "boiler" | "esp" | "stack";
+/** 可点击设备 ID：皮带机/球团仓/给料机/窑头罩/水淬池/余热锅炉/电收尘/脱硫塔/引风机/烟囱 */
+export type TwinDeviceId =
+  | "kilnHead"
+  | "feeder"
+  | "silo"
+  | "conveyor"
+  | "boiler"
+  | "esp"
+  | "desulf"
+  | "idFan"
+  | "stack"
+  | "quench";
 
 export interface TwinDeviceMetric {
   label: string;
@@ -78,6 +92,20 @@ const DEVICE_META: Record<
       "按设定频率将球团均匀给入窑尾，给料量与窑速、温度场匹配，决定料层厚度与焙烧质量；频率反馈持续偏高或剧烈波动时，需关注下料口堵塞与仓内料位。",
     metrics: [{ label: "给料频率", field: "feedFreq", unit: "Hz", digits: 1 }],
   },
+  silo: {
+    name: "球团仓",
+    role: "入窑物料缓冲储存",
+    description:
+      "储存料场输送来的球团，经仓下圆盘给料机计量后溜入窑尾。仓内料位需维持安全区间：过低易断料引起窑内温度波动，过高可能满仓冒料；仓顶设入料口与除尘接口，仓壁设料位计。",
+    metrics: [{ label: "给料频率", field: "feedFreq", unit: "Hz", digits: 1 }],
+  },
+  conveyor: {
+    name: "上料皮带机",
+    role: "球团上料输送",
+    description:
+      "将料场球团连续输送至球团仓顶，大倾角皮带配挡边防滑、托辊沿程支撑、头部滚筒驱动。给料频率决定皮带负荷与料流连续性，运行中需关注皮带跑偏、打滑与托辊卡滞，异常时通过张紧装置调整。",
+    metrics: [{ label: "给料频率", field: "feedFreq", unit: "Hz", digits: 1 }],
+  },
   boiler: {
     name: "余热锅炉",
     role: "高温烟气余热回收",
@@ -92,18 +120,39 @@ const DEVICE_META: Record<
     name: "电收尘器",
     role: "高压静电除尘",
     description:
-      "高压电晕使烟气中金属氧化物粉尘荷电并沉积于集尘极，振打回收后返回配料，实现有价金属资源循环；入口 CO 超限存在燃爆风险，需与燃烧工况联锁。",
+      "高压电晕使烟气中金属氧化物粉尘荷电并沉积于集尘极，振打回收后经集灰螺旋返回配料，实现有价金属资源循环；入口 CO 超限存在燃爆风险，需与燃烧工况联锁。",
     metrics: [
       { label: "CO 浓度", field: "co", unit: "%", digits: 3 },
       { label: "风机阀开度", field: "fanValve", unit: "%", digits: 1 },
     ],
   },
+  desulf: {
+    name: "脱硫塔",
+    role: "烟气脱硫净化",
+    description:
+      "双碱法脱硫：循环浆液经喷淋环管逆流洗涤烟气中 SO₂，塔底氧化风机曝气促使亚硫酸钙氧化再生，塔顶除雾器捕集夹带雾滴；浆液 pH 与密度决定脱硫效率与副产物品质，需定期检测补碱。",
+    metrics: [],
+  },
+  idFan: {
+    name: "引风机",
+    role: "系统通风动力核心",
+    description:
+      "全系统负压的动力来源：抽引烟气克服余热锅炉、电收尘、脱硫塔阻力后经烟囱排放。进口阀门开度反馈实时调节风量，与窑头罩微负压及燃烧工况直接联动，开度波动会同步引起窑内温度与 CO 变化。",
+    metrics: [{ label: "进口阀开度", field: "fanValve", unit: "%", digits: 1 }],
+  },
   stack: {
     name: "烟囱",
     role: "净化烟气达标排放",
     description:
-      "经余热锅炉、电收尘与脱硫塔净化后的烟气由引风机送入烟囱达标排放；烟囱抽力与增压风机进口阀门开度共同决定系统通风量与窑内负压分布。",
+      "经余热锅炉、电收尘与脱硫塔净化后的烟气由引风机送入烟囱达标排放；烟囱抽力与增压风机进口阀门开度共同决定系统通风量与窑内负压分布。筒身设 CEMS 采样口，在线监测排放浓度。",
     metrics: [{ label: "风机阀开度", field: "fanValve", unit: "%", digits: 1 }],
+  },
+  quench: {
+    name: "水淬池",
+    role: "高温炉渣水淬冷却",
+    description:
+      "窑头排出的高温挥发渣经溜槽直接落入水淬池急冷成粒，大量蒸汽外逸；粒化渣由捞渣机连续捞出外运，冷却水经循环水泵加压回用。水位与水温需在线监控，防止水位过低烧坏池体或蒸汽爆腾。",
+    metrics: [{ label: "给料频率", field: "feedFreq", unit: "Hz", digits: 1 }],
   },
 };
 
@@ -169,6 +218,18 @@ const GAS_SEGS = GAS_PATH.slice(1).map((b, i) => {
   return { a, b, len: Math.hypot(b[0] - a[0], b[1] - a[1], b[2] - a[2]) };
 });
 const GAS_TOTAL = GAS_SEGS.reduce((s, x) => s + x.len, 0);
+
+/** 上料皮带机几何：尾部受料 → 头部卸入球团仓顶（大倾角） */
+const CONV_TAIL: [number, number] = [-30.5, 1.8];
+const CONV_HEAD: [number, number] = [-16.9, 14.2];
+const CONV_MID: [number, number] = [
+  (CONV_TAIL[0] + CONV_HEAD[0]) / 2,
+  (CONV_TAIL[1] + CONV_HEAD[1]) / 2,
+];
+const CONV_ANG = Math.atan2(CONV_HEAD[1] - CONV_TAIL[1], CONV_HEAD[0] - CONV_TAIL[0]);
+const CONV_LEN = Math.hypot(CONV_HEAD[0] - CONV_TAIL[0], CONV_HEAD[1] - CONV_TAIL[1]);
+/** 皮带沿线高度：slopeY(x) = 尾部高 + (x-尾部x)·tan(倾角) */
+const CONV_SLOPE = (x: number) => CONV_TAIL[1] + (x - CONV_TAIL[0]) * Math.tan(CONV_ANG);
 
 // 粒子颜色三段渐变（高温橙 → 中性灰 → 净化青）与临时向量，避免每帧分配
 const _cHot = new THREE.Color("#fb923c");
@@ -384,7 +445,7 @@ function KilnBody({
   );
 }
 
-/** 主传动：小齿轮（与大齿圈啮合、反向联动）+ 减速机 + 主电机 */
+/** 主传动：小齿轮（与大齿圈啮合、反向联动）+ 减速机 + 主电机 + 落地支撑框架 */
 function DriveUnit({ telemetry }: { telemetry: KilnTelemetry }) {
   const driveRef = React.useRef<THREE.Group>(null);
   useFrame((_, dt) => {
@@ -429,6 +490,15 @@ function DriveUnit({ telemetry }: { telemetry: KilnTelemetry }) {
         <boxGeometry args={[5.6, 0.32, 1.8]} />
         <meshStandardMaterial color="#64748b" metalness={0.25} roughness={0.75} />
       </mesh>
+      {/* 落地支撑柱（底座 → 地面） */}
+      {[0.2, 3.6].flatMap((cx) =>
+        [-0.55, 0.55].map((cz) => (
+          <mesh key={`${cx}-${cz}`} position={[cx, -2.5, cz]}>
+            <boxGeometry args={[0.28, 2.58, 0.28]} />
+            <meshStandardMaterial color="#64748b" metalness={0.3} roughness={0.7} />
+          </mesh>
+        ))
+      )}
     </group>
   );
 }
@@ -482,7 +552,7 @@ function KilnHead({
   );
 }
 
-/** 窑尾给料：圆盘给料机 + 料流 */
+/** 窑尾给料：圆盘给料机 + 料流 + 球团仓（支腿落地 + 交叉撑） */
 function FeedEnd({
   telemetry,
   onDeviceClick,
@@ -526,30 +596,47 @@ function FeedEnd({
         <boxGeometry args={[2.4, 3.8, 3.8]} />
         <meshStandardMaterial color="#334155" metalness={0.5} roughness={0.55} />
       </mesh>
-      {/* 球团仓（锥底料仓 + 支腿） */}
+      {/* 球团仓（锥底料仓 + 落地支腿 + 交叉撑，可点击查看工艺详情） */}
       <group position={[-3.4, 0, 0]}>
-        <mesh position={[0, 6.4, 0]}>
+        <mesh position={[0, 6.4, 0]} {...deviceHandlers("silo", telemetry, onDeviceClick)}>
           <cylinderGeometry args={[1.35, 1.35, 1.7, 20]} />
           <meshStandardMaterial color="#57534e" metalness={0.4} roughness={0.6} />
         </mesh>
-        <mesh position={[0, 5.05, 0]}>
+        <mesh position={[0, 5.05, 0]} {...deviceHandlers("silo", telemetry, onDeviceClick)}>
           <cylinderGeometry args={[0.45, 1.35, 1.0, 20]} />
           <meshStandardMaterial color="#57534e" metalness={0.4} roughness={0.6} />
         </mesh>
         {/* 料仓顶盖 */}
-        <mesh position={[0, 7.35, 0]}>
+        <mesh position={[0, 7.35, 0]} {...deviceHandlers("silo", telemetry, onDeviceClick)}>
           <sphereGeometry args={[1.35, 20, 8, 0, Math.PI * 2, 0, Math.PI / 2]} />
           <meshStandardMaterial color="#44403c" metalness={0.4} roughness={0.6} />
         </mesh>
-        {/* 支腿 */}
+        {/* 落地支腿（锥底 4.55 → 地面） */}
         {[-1, 1].map((sx) =>
           [-1, 1].map((sz) => (
-            <mesh key={`${sx}-${sz}`} position={[sx * 1.05, 2.9, sz * 1.05]}>
-              <boxGeometry args={[0.12, 2.6, 0.12]} />
+            <mesh key={`${sx}-${sz}`} position={[sx * 1.05, 2.2, sz * 1.05]}>
+              <boxGeometry args={[0.13, 4.7, 0.13]} />
               <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.5} />
             </mesh>
           ))
         )}
+        {/* 支腿交叉撑（两层） */}
+        {[1.5, 3.0].map((by) => (
+          <React.Fragment key={by}>
+            {[-1, 1].map((sz) => (
+              <mesh key={`x-${by}-${sz}`} position={[0, by, sz * 1.05]}>
+                <boxGeometry args={[2.24, 0.07, 0.07]} />
+                <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.5} />
+              </mesh>
+            ))}
+            {[-1, 1].map((sx) => (
+              <mesh key={`z-${by}-${sx}`} position={[sx * 1.05, by, 0]}>
+                <boxGeometry args={[0.07, 0.07, 2.24]} />
+                <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.5} />
+              </mesh>
+            ))}
+          </React.Fragment>
+        ))}
         {/* 仓→圆盘落料珠串 */}
         <group ref={siloBeadsRef}>
           {Array.from({ length: 4 }).map((_, i) => (
@@ -594,7 +681,13 @@ function FeedEnd({
 }
 
 /** 窑渣水淬：窑头卸料溜槽 → 水淬池（渣流+蒸汽，速率∝给料频率） */
-function SlagQuench({ telemetry }: { telemetry: KilnTelemetry }) {
+function SlagQuench({
+  telemetry,
+  onDeviceClick,
+}: {
+  telemetry: KilnTelemetry;
+  onDeviceClick?: (info: TwinDeviceInfo) => void;
+}) {
   const beadsRef = React.useRef<THREE.Group>(null);
   const steamRef = React.useRef<THREE.Group>(null);
   const px = SHELL_LEN / 2 + 4.1; // 池中心 x（窑头卸料口外侧）
@@ -633,8 +726,8 @@ function SlagQuench({ telemetry }: { telemetry: KilnTelemetry }) {
 
   return (
     <group position={[px, 0, pz]}>
-      {/* 池体 */}
-      <mesh position={[0, 0.5, 0]}>
+      {/* 池体（可点击查看工艺详情） */}
+      <mesh position={[0, 0.5, 0]} {...deviceHandlers("quench", telemetry, onDeviceClick)}>
         <boxGeometry args={[3.6, 1.0, 3.2]} />
         <meshStandardMaterial color="#334155" metalness={0.4} roughness={0.6} />
       </mesh>
@@ -681,7 +774,7 @@ function SlagQuench({ telemetry }: { telemetry: KilnTelemetry }) {
   );
 }
 
-/** 烟气处理：余热锅炉 → 电收尘 → 脱硫塔 → 引风机 → 烟囱（烟气粒子） */
+/** 烟气处理：余热锅炉 → 电收尘 → 脱硫塔 → 引风机 → 烟囱（烟气粒子，速率∝风机阀开度） */
 function GasTrain({
   telemetry,
   onDeviceClick,
@@ -694,7 +787,8 @@ function GasTrain({
 
   useFrame((state, dt) => {
     if (smokeRef.current) {
-      const t = state.clock.elapsedTime * 0.5;
+      const rate = 0.32 + (telemetry.fanValve ?? 45) * 0.0038; // 阀开度↑ → 烟气量↑
+      const t = state.clock.elapsedTime * rate;
       smokeRef.current.children.forEach((p, i) => {
         const phase = (t + i / smokeRef.current!.children.length) % 1;
         p.position.y = phase * 7.2;
@@ -736,9 +830,9 @@ function GasTrain({
           <meshStandardMaterial color="#54627a" metalness={0.6} roughness={0.45} />
         </mesh>
       </group>
-      {/* 脱硫塔（双碱法：浆液循环泵 + 喷淋环管 + 除雾器） */}
+      {/* 脱硫塔（双碱法：浆液循环泵 + 喷淋环管 + 除雾器，可点击查看工艺详情） */}
       <group position={[11.6, 0, -3.5]}>
-        <mesh position={[0, 3.75, 0]}>
+        <mesh position={[0, 3.75, 0]} {...deviceHandlers("desulf", telemetry, onDeviceClick)}>
           <cylinderGeometry args={[1.35, 1.5, 7.5, 22]} />
           <meshStandardMaterial color="#0f766e" metalness={0.5} roughness={0.5} />
         </mesh>
@@ -766,13 +860,17 @@ function GasTrain({
           <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.35} />
         </mesh>
       </group>
-      {/* 引风机（离心风机：蜗壳 + 叶轮 + 电机，叶轮旋转） */}
+      {/* 引风机（离心风机：蜗壳 + 叶轮 + 电机，叶轮旋转；可点击查看工艺详情） */}
       <group position={[13.4, 0, -0.9]}>
         <mesh position={[0, 0.2, 0]}>
           <boxGeometry args={[2.4, 0.4, 2.4]} />
           <meshStandardMaterial color="#64748b" roughness={0.8} />
         </mesh>
-        <mesh position={[0, 1.75, 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <mesh
+          position={[0, 1.75, 0]}
+          rotation={[Math.PI / 2, 0, 0]}
+          {...deviceHandlers("idFan", telemetry, onDeviceClick)}
+        >
           <cylinderGeometry args={[1.05, 1.05, 1.3, 24]} />
           <meshStandardMaterial color="#3f5270" metalness={0.6} roughness={0.4} />
         </mesh>
@@ -846,19 +944,19 @@ function GasTrain({
         <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
       </mesh>
       {/* 烟气流向粒子 */}
-      <GasFlowParticles />
+      <GasFlowParticles telemetry={telemetry} />
     </group>
   );
 }
 
-/** 烟气流向粒子：沿烟气路径匀速流动，颜色 高温橙→中性灰→净化青（体现净化进程） */
-function GasFlowParticles() {
+/** 烟气流向粒子：沿烟气路径流动（速率∝风机阀开度），颜色 高温橙→中性灰→净化青（体现净化进程） */
+function GasFlowParticles({ telemetry }: { telemetry: KilnTelemetry }) {
   const ref = React.useRef<THREE.Group>(null);
   const N = 14;
 
   useFrame((state) => {
     if (!ref.current) return;
-    const t = state.clock.elapsedTime * 0.085;
+    const t = state.clock.elapsedTime * (0.055 + (telemetry.fanValve ?? 45) * 0.0007);
     ref.current.children.forEach((p, i) => {
       const d = (((t + i / N) % 1) + 1) % 1 * GAS_TOTAL;
       let acc = 0;
@@ -897,18 +995,880 @@ function GasFlowParticles() {
   );
 }
 
-/** 设备名称标签（与数据标签独立开关，纯展示不拦截鼠标） */
+/** 直爬梯（双立柱 + 踏步），供锅炉/电收尘/脱硫塔/浆液罐/烟囱复用 */
+function Ladder({ x, z, h, y0 = 0.3 }: { x: number; z: number; h: number; y0?: number }) {
+  const rungs = Math.max(3, Math.floor(h / 0.65));
+  return (
+    <group position={[x, y0, z]}>
+      {[-0.22, 0.22].map((dx) => (
+        <mesh key={dx} position={[dx, h / 2, 0]}>
+          <boxGeometry args={[0.05, h, 0.05]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {Array.from({ length: rungs }).map((_, i) => (
+        <mesh key={i} position={[0, (h / (rungs - 1)) * i, 0]}>
+          <boxGeometry args={[0.46, 0.04, 0.04]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** 上料系统：球团料场 + 大倾角皮带机（料珠∝给料频率）→ 球团仓顶卸料 */
+function FeedConveyor({
+  telemetry,
+  onDeviceClick,
+}: {
+  telemetry: KilnTelemetry;
+  onDeviceClick?: (info: TwinDeviceInfo) => void;
+}) {
+  const beadsRef = React.useRef<THREE.Group>(null);
+  const N = 10;
+
+  useFrame((state) => {
+    if (!beadsRef.current) return;
+    const rate = 0.25 + (telemetry.feedFreq ?? 8) * 0.06;
+    const t = state.clock.elapsedTime * rate;
+    beadsRef.current.children.forEach((b, i) => {
+      const phase = (t + i / N) % 1;
+      b.position.x = -CONV_LEN / 2 + 0.4 + phase * (CONV_LEN - 0.8);
+    });
+  });
+
+  const handlers = deviceHandlers("conveyor", telemetry, onDeviceClick);
+
+  return (
+    <group>
+      {/* 料场地坪 + 球团堆 ×2 */}
+      <mesh position={[-31.5, 0.05, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[11, 8]} />
+        <meshStandardMaterial color="#adb4bc" roughness={0.95} />
+      </mesh>
+      <mesh position={[-33, 1.1, 0]}>
+        <coneGeometry args={[2.4, 2.2, 18]} />
+        <meshStandardMaterial color="#b8b0a4" roughness={0.95} />
+      </mesh>
+      <mesh position={[-35.6, 0.7, 1.2]}>
+        <coneGeometry args={[1.6, 1.4, 16]} />
+        <meshStandardMaterial color="#b8b0a4" roughness={0.95} />
+      </mesh>
+
+      {/* 皮带桁架（倾角约 42°，随地形升起） */}
+      <group position={[CONV_MID[0], CONV_MID[1], 0]} rotation={[0, 0, CONV_ANG]}>
+        {/* 皮带面（可点击） */}
+        <mesh {...handlers}>
+          <boxGeometry args={[CONV_LEN, 0.1, 1.0]} />
+          <meshStandardMaterial color="#2b3238" roughness={0.9} />
+        </mesh>
+        {/* 侧轨 + 下弦 */}
+        {[-0.52, 0.52].map((z) => (
+          <React.Fragment key={z}>
+            <mesh position={[0, 0.3, z]}>
+              <boxGeometry args={[CONV_LEN, 0.5, 0.06]} />
+              <meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.5} />
+            </mesh>
+            <mesh position={[0, -0.18, z]}>
+              <boxGeometry args={[CONV_LEN, 0.08, 0.06]} />
+              <meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.5} />
+            </mesh>
+          </React.Fragment>
+        ))}
+        {/* 横撑 ×8 */}
+        {Array.from({ length: 8 }).map((_, i) => (
+          <mesh key={i} position={[-CONV_LEN / 2 + 1.6 + i * 2.2, 0.3, 0]}>
+            <boxGeometry args={[0.07, 0.07, 1.1]} />
+            <meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.5} />
+          </mesh>
+        ))}
+        {/* 托辊 ×6 */}
+        {Array.from({ length: 6 }).map((_, i) => (
+          <mesh
+            key={`idler-${i}`}
+            position={[-CONV_LEN / 2 + 2.6 + i * 2.4, 0.13, 0]}
+            rotation={[Math.PI / 2, 0, 0]}
+          >
+            <cylinderGeometry args={[0.07, 0.07, 0.95, 10]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+          </mesh>
+        ))}
+        {/* 皮带料珠（∝给料频率） */}
+        <group ref={beadsRef}>
+          {Array.from({ length: N }).map((_, i) => (
+            <mesh key={i} position={[0, 0.22, 0]}>
+              <sphereGeometry args={[0.15, 8, 8]} />
+              <meshStandardMaterial color="#a8a29e" roughness={0.9} />
+            </mesh>
+          ))}
+        </group>
+      </group>
+
+      {/* 中间支撑腿 ×3（双柱 + 横梁） */}
+      {[-27.5, -24.5, -21.5].map((lx) => {
+        const top = CONV_SLOPE(lx) - 0.5;
+        return (
+          <group key={lx} position={[lx, 0, 0]}>
+            {[-0.5, 0.5].map((z) => (
+              <mesh key={z} position={[0, top / 2, z]}>
+                <boxGeometry args={[0.16, top, 0.16]} />
+                <meshStandardMaterial color="#64748b" metalness={0.4} roughness={0.6} />
+              </mesh>
+            ))}
+            <mesh position={[0, top - 0.35, 0]}>
+              <boxGeometry args={[0.14, 0.14, 1.16]} />
+              <meshStandardMaterial color="#64748b" metalness={0.4} roughness={0.6} />
+            </mesh>
+          </group>
+        );
+      })}
+
+      {/* 头部塔架（4 柱 3 层横梁，避让球团仓） */}
+      {[-17.4, -16.4].flatMap((lx) =>
+        [-1.7, 1.7].map((z) => (
+          <mesh key={`${lx}-${z}`} position={[lx, 6.95, z]}>
+            <boxGeometry args={[0.2, 13.9, 0.2]} />
+            <meshStandardMaterial color="#64748b" metalness={0.4} roughness={0.6} />
+          </mesh>
+        ))
+      )}
+      {[3.5, 7, 10.5].map((by) => (
+        <React.Fragment key={by}>
+          {/* 顺窑轴横梁（连接两排立柱） */}
+          {[-1.7, 1.7].map((z) => (
+            <mesh key={`tie-${z}`} position={[-16.9, by, z]}>
+              <boxGeometry args={[1.1, 0.14, 0.14]} />
+              <meshStandardMaterial color="#64748b" metalness={0.4} roughness={0.6} />
+            </mesh>
+          ))}
+          {/* 横向联系梁 */}
+          {[-17.4, -16.4].map((lx) => (
+            <mesh key={`cross-${lx}`} position={[lx, by, 0]}>
+              <boxGeometry args={[0.14, 0.14, 3.55]} />
+              <meshStandardMaterial color="#64748b" metalness={0.4} roughness={0.6} />
+            </mesh>
+          ))}
+        </React.Fragment>
+      ))}
+
+      {/* 尾部滚筒 + 受料斗 */}
+      <mesh position={[CONV_TAIL[0], CONV_TAIL[1], 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, 1.15, 14]} />
+        <meshStandardMaterial color="#475569" metalness={0.7} roughness={0.35} />
+      </mesh>
+      <mesh position={[CONV_TAIL[0] - 0.3, 2.95, 0]} rotation={[0, Math.PI / 4, 0]}>
+        <coneGeometry args={[1.05, 1.2, 4]} />
+        <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.55} />
+      </mesh>
+
+      {/* 头部滚筒 + 驱动电机（可点击） */}
+      <mesh position={[CONV_HEAD[0], CONV_HEAD[1], 0]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.34, 0.34, 1.15, 14]} />
+        <meshStandardMaterial color="#475569" metalness={0.7} roughness={0.35} />
+      </mesh>
+      <mesh position={[CONV_HEAD[0] - 0.75, CONV_HEAD[1] - 0.1, 0]} {...handlers}>
+        <boxGeometry args={[0.55, 0.5, 0.55]} />
+        <meshStandardMaterial color="#1d4ed8" metalness={0.55} roughness={0.45} />
+      </mesh>
+      {/* 头部卸料斗 → 球团仓顶入料口 */}
+      <mesh position={[CONV_HEAD[0] + 0.15, CONV_HEAD[1] - 0.75, 0]} rotation={[0, 0, -0.3]}>
+        <boxGeometry args={[0.55, 0.8, 0.55]} />
+        <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.55} />
+      </mesh>
+      <mesh position={[-16.6, 13.55, 0]}>
+        <boxGeometry args={[0.75, 0.3, 0.75]} />
+        <meshStandardMaterial color="#44403c" metalness={0.4} roughness={0.6} />
+      </mesh>
+    </group>
+  );
+}
+
+/** 窑体支撑：托轮基础墩 ×2 + 窑尾罩落地框架 */
+function KilnFoundations() {
+  return (
+    <group>
+      {/* 托轮基础墩（混凝土，顶面承接托轮） */}
+      <mesh position={[7.5, 0.545, 0]}>
+        <boxGeometry args={[3.0, 1.09, 6.4]} />
+        <meshStandardMaterial color="#a8aeb8" roughness={0.92} />
+      </mesh>
+      <mesh position={[-7.5, 0.885, 0]}>
+        <boxGeometry args={[3.0, 1.77, 6.4]} />
+        <meshStandardMaterial color="#a8aeb8" roughness={0.92} />
+      </mesh>
+      {/* 窑尾罩支撑柱（罩底 3.19 → 地面） */}
+      {[-15.0, -13.0].flatMap((cx) =>
+        [-1.6, 1.6].map((cz) => (
+          <mesh key={`${cx}-${cz}`} position={[cx, 1.65, cz]}>
+            <boxGeometry args={[0.24, 3.3, 0.24]} />
+            <meshStandardMaterial color="#475569" metalness={0.45} roughness={0.55} />
+          </mesh>
+        ))
+      )}
+    </group>
+  );
+}
+
+/** 窑头区细节：支撑框架 / 检修平台栏杆 / 斜梯 / 燃烧器小车轨道 / 一次风机风管 / 看火孔辉光 */
+function HeadPlatform({ telemetry }: { telemetry: KilnTelemetry }) {
+  const peepRef = React.useRef<THREE.Mesh>(null);
+
+  useFrame((state) => {
+    if (!peepRef.current) return;
+    const heat = THREE.MathUtils.clamp(((telemetry.headTemp ?? 900) - 700) / 450, 0.1, 1.3);
+    const flicker = 0.85 + 0.15 * Math.sin(state.clock.elapsedTime * 9);
+    (peepRef.current.material as THREE.MeshStandardMaterial).emissiveIntensity =
+      (0.5 + heat * 1.2) * flicker;
+  });
+
+  return (
+    <group>
+      {/* 窑头罩支撑柱（罩底 1.79 → 地面） */}
+      {[13.2, 15.8].flatMap((cx) =>
+        [-1.9, 1.9].map((cz) => (
+          <mesh key={`${cx}-${cz}`} position={[cx, 0.95, cz]}>
+            <boxGeometry args={[0.26, 1.95, 0.26]} />
+            <meshStandardMaterial color="#475569" metalness={0.45} roughness={0.55} />
+          </mesh>
+        ))
+      )}
+      {/* 检修平台（窑头罩前脸） */}
+      <mesh position={[14.5, 2.42, 2.95]}>
+        <boxGeometry args={[5.8, 0.08, 1.9]} />
+        <meshStandardMaterial color="#5b6774" metalness={0.45} roughness={0.6} />
+      </mesh>
+      {/* 平台栏杆：立柱 + 双道横杆 */}
+      {[12.0, 14.0, 16.0, 17.2].map((px) => (
+        <mesh key={px} position={[px, 2.86, 3.85]}>
+          <boxGeometry args={[0.05, 0.8, 0.05]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {[3.22, 2.98].map((ry) => (
+        <mesh key={ry} position={[14.6, ry, 3.85]}>
+          <boxGeometry args={[5.4, 0.05, 0.05]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {[11.75, 17.45].map((sx) => (
+        <mesh key={sx} position={[sx, 2.98, 2.95]}>
+          <boxGeometry args={[0.05, 0.05, 1.9]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* 登平台斜梯 */}
+      <mesh position={[11.6, 1.21, 4.6]} rotation={[-Math.PI / 4, 0, 0]}>
+        <boxGeometry args={[0.9, 0.08, 2.8]} />
+        <meshStandardMaterial color="#5b6774" metalness={0.45} roughness={0.6} />
+      </mesh>
+      {/* 燃烧器小车：地面轨道 + 小车架 + 轮组 + 立柱 + 卡箍 */}
+      {[-0.5, 0.5].map((z) => (
+        <mesh key={z} position={[16.0, 0.04, z]}>
+          <boxGeometry args={[4.5, 0.08, 0.1]} />
+          <meshStandardMaterial color="#334155" metalness={0.5} roughness={0.5} />
+        </mesh>
+      ))}
+      <mesh position={[16.4, 0.35, 0]}>
+        <boxGeometry args={[1.4, 0.2, 1.3]} />
+        <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.55} />
+      </mesh>
+      {[-0.45, 0.45].flatMap((dx) =>
+        [-0.5, 0.5].map((z) => (
+          <mesh key={`${dx}-${z}`} position={[16.4 + dx, 0.18, z]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.18, 0.18, 0.12, 12]} />
+            <meshStandardMaterial color="#1e293b" metalness={0.6} roughness={0.4} />
+          </mesh>
+        ))
+      )}
+      <mesh position={[16.2, 2.15, 0]}>
+        <cylinderGeometry args={[0.12, 0.12, 3.3, 10]} />
+        <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.5} />
+      </mesh>
+      <mesh position={[16.2, 3.94, 0]} rotation={[0, Math.PI / 2, 0]}>
+        <torusGeometry args={[0.22, 0.05, 8, 18]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      {/* 一次风机 + 风管（风机 → 立管 → 弯头 → 燃烧器尾部） */}
+      <mesh position={[18.8, 0.1, 2.8]}>
+        <boxGeometry args={[1.4, 0.2, 1.4]} />
+        <meshStandardMaterial color="#b6bcc4" roughness={0.92} />
+      </mesh>
+      <mesh position={[18.8, 0.8, 2.8]}>
+        <boxGeometry args={[1.0, 1.2, 1.0]} />
+        <meshStandardMaterial color="#334155" metalness={0.55} roughness={0.45} />
+      </mesh>
+      <mesh position={[18.8, 2.6, 2.4]}>
+        <cylinderGeometry args={[0.18, 0.18, 2.4, 10]} />
+        <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh position={[18.8, 3.8, 1.35]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.18, 0.18, 2.1, 10]} />
+        <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh position={[18.35, 3.85, 0.15]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.18, 0.18, 0.95, 10]} />
+        <meshStandardMaterial color="#64748b" metalness={0.6} roughness={0.4} />
+      </mesh>
+      {/* 看火孔（窑头罩前脸，辉光∝窑头温度） */}
+      <mesh position={[14.3, 4.3, 2.22]}>
+        <torusGeometry args={[0.2, 0.04, 8, 18]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh ref={peepRef} position={[14.3, 4.3, 2.24]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.16, 0.16, 0.04, 14]} />
+        <meshStandardMaterial color="#f97316" emissive="#f97316" emissiveIntensity={1} />
+      </mesh>
+    </group>
+  );
+}
+
+/** 水淬区细节：捞渣机（链板+渣珠∝给料频率）+ 循环水泵机组 + 回水管 */
+function QuenchExtras({ telemetry }: { telemetry: KilnTelemetry }) {
+  const barsRef = React.useRef<THREE.Group>(null);
+  const slagRef = React.useRef<THREE.Group>(null);
+  const NB = 7;
+  const NS = 6;
+
+  useFrame((state) => {
+    const rate = 0.35 + (telemetry.feedFreq ?? 8) * 0.05;
+    const t = state.clock.elapsedTime * rate;
+    const place = (obj: THREE.Object3D, phase: number) => {
+      obj.position.set(0, 0.62 + phase * 1.62, 1.15 + phase * 2.45);
+    };
+    if (barsRef.current) barsRef.current.children.forEach((b, i) => place(b, (t + i / NB) % 1));
+    if (slagRef.current) slagRef.current.children.forEach((b, i) => place(b, (t + i / NS) % 1));
+  });
+
+  return (
+    <group position={[SHELL_LEN / 2 + 4.1, 0, 3.0]}>
+      {/* 捞渣机斜框架 + 支腿 + 出渣溜槽 */}
+      <mesh position={[0, 1.45, 2.4]} rotation={[-0.585, 0, 0]}>
+        <boxGeometry args={[0.72, 0.06, 2.72]} />
+        <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.55} />
+      </mesh>
+      {[1.75, 3.2].map((lz) => (
+        <React.Fragment key={lz}>
+          {[-0.28, 0.28].map((lx) => (
+            <mesh key={lx} position={[lx, lz === 1.75 ? 0.49 : 0.985, lz]}>
+              <boxGeometry args={[0.08, lz === 1.75 ? 0.98 : 1.97, 0.08]} />
+              <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.55} />
+            </mesh>
+          ))}
+        </React.Fragment>
+      ))}
+      <mesh position={[0, 2.35, 3.7]} rotation={[-0.5, 0, 0]}>
+        <boxGeometry args={[0.75, 0.45, 0.5]} />
+        <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.55} />
+      </mesh>
+      {/* 链板（移动） */}
+      <group ref={barsRef}>
+        {Array.from({ length: NB }).map((_, i) => (
+          <mesh key={i}>
+            <boxGeometry args={[0.8, 0.05, 0.13]} />
+            <meshStandardMaterial color="#5b6774" metalness={0.5} roughness={0.55} />
+          </mesh>
+        ))}
+      </group>
+      {/* 粒化渣（随链板上移） */}
+      <group ref={slagRef}>
+        {Array.from({ length: NS }).map((_, i) => (
+          <mesh key={i}>
+            <sphereGeometry args={[0.14, 8, 8]} />
+            <meshStandardMaterial
+              color="#fb923c"
+              emissive="#ea580c"
+              emissiveIntensity={0.7}
+              roughness={0.85}
+            />
+          </mesh>
+        ))}
+      </group>
+      {/* 循环水泵机组：基础 + 泵蜗壳 + 电机 + 吸水管 + 出水管 */}
+      <mesh position={[-2.95, 0.075, 1.3]}>
+        <boxGeometry args={[1.9, 0.15, 0.95]} />
+        <meshStandardMaterial color="#b6bcc4" roughness={0.92} />
+      </mesh>
+      <mesh position={[-2.95, 0.62, 1.3]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.3, 0.3, 0.35, 16]} />
+        <meshStandardMaterial color="#1d4ed8" metalness={0.55} roughness={0.45} />
+      </mesh>
+      <mesh position={[-3.55, 0.62, 1.3]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.17, 0.17, 0.5, 12]} />
+        <meshStandardMaterial color="#334155" metalness={0.5} roughness={0.5} />
+      </mesh>
+      <mesh position={[-2.37, 0.62, 1.3]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.09, 0.09, 1.15, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh position={[-2.95, 1.4, 1.3]}>
+        <cylinderGeometry args={[0.09, 0.09, 1.5, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh position={[-3.6, 2.1, 1.3]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.09, 0.09, 1.3, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+/** 余热锅炉细节：受热面分段色带 / 灰斗 / 安全阀蒸汽（∝锅筒压力）/ 顶部栏杆 / 检修爬梯 */
+function BoilerExtras({ telemetry }: { telemetry: KilnTelemetry }) {
+  const steamRef = React.useRef<THREE.Group>(null);
+  const N = 4;
+
+  useFrame((state) => {
+    if (!steamRef.current) return;
+    const p = telemetry.boilerPressure ?? 0.6;
+    const rate = 0.45 + p * 0.45;
+    const t = state.clock.elapsedTime * rate;
+    steamRef.current.children.forEach((s, i) => {
+      const phase = (t + i / N) % 1;
+      s.position.set(
+        Math.sin(phase * 5 + i * 2) * 0.18,
+        phase * 1.5,
+        Math.cos(phase * 4 + i) * 0.18
+      );
+      s.scale.setScalar(0.5 + phase * 1.1);
+      const m = (s as THREE.Mesh).material as THREE.MeshStandardMaterial;
+      m.opacity = 0.38 * (1 - phase) * Math.min(1, phase * 4);
+      (s as THREE.Mesh).visible = phase < 0.9;
+    });
+  });
+
+  return (
+    <group position={[19, 0, -3.5]}>
+      {/* 受热面分段色带（过热 / 蒸发 / 省煤） */}
+      {[
+        { y: 4.9, c: "#ef4444" },
+        { y: 3.7, c: "#f97316" },
+        { y: 2.5, c: "#eab308" },
+      ].map((b) => (
+        <mesh key={b.y} position={[0, b.y, 1.77]}>
+          <boxGeometry args={[3.8, 0.26, 0.05]} />
+          <meshStandardMaterial color={b.c} emissive={b.c} emissiveIntensity={0.3} roughness={0.6} />
+        </mesh>
+      ))}
+      {/* 底部灰斗 ×2 */}
+      {[-1.05, 1.05].map((dx) => (
+        <mesh key={dx} position={[dx, -0.6, 0]}>
+          <cylinderGeometry args={[0.75, 0.14, 1.2, 14]} />
+          <meshStandardMaterial color="#475569" metalness={0.55} roughness={0.5} />
+        </mesh>
+      ))}
+      {/* 安全阀 + 蒸汽缕（∝锅筒压力） */}
+      <mesh position={[0, 7.25, 0]}>
+        <cylinderGeometry args={[0.09, 0.09, 0.3, 8]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.35} />
+      </mesh>
+      <group ref={steamRef} position={[0, 7.45, 0]}>
+        {Array.from({ length: N }).map((_, i) => (
+          <mesh key={i}>
+            <sphereGeometry args={[0.14, 8, 8]} />
+            <meshStandardMaterial color="#e2e8f0" transparent opacity={0.35} depthWrite={false} />
+          </mesh>
+        ))}
+      </group>
+      {/* 顶部检修栏杆 */}
+      {[-2.3, 2.3].map((dx) =>
+        [-1.75, -5.25].map((dz) => (
+          <mesh key={`${dx}-${dz}`} position={[dx, 6.3, dz]}>
+            <boxGeometry args={[0.04, 0.5, 0.04]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+          </mesh>
+        ))
+      )}
+      {[-1.75, -5.25].map((dz) => (
+        <mesh key={dz} position={[0, 6.55, dz]}>
+          <boxGeometry args={[4.6, 0.04, 0.04]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {[-2.3, 2.3].map((dx) => (
+        <mesh key={dx} position={[dx, 6.55, -3.5]}>
+          <boxGeometry args={[0.04, 0.04, 3.55]} />
+          <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+        </mesh>
+      ))}
+      {/* 检修爬梯 */}
+      <Ladder x={2.1} z={1.79} h={5.7} y0={0.3} />
+    </group>
+  );
+}
+
+/** 电收尘细节：顶部绝缘子室 ×4 / 振打电机 ×2 / 灰斗 ×4 / 集灰螺旋（旋转）+ 卸灰溜槽 + 高压柜 */
+function EspExtras() {
+  const screwRef = React.useRef<THREE.Group>(null);
+  const beadsRef = React.useRef<THREE.Group>(null);
+
+  useFrame((state, dt) => {
+    if (screwRef.current) screwRef.current.rotation.x += dt * 3.2;
+    if (beadsRef.current) {
+      const t = state.clock.elapsedTime * 0.7;
+      beadsRef.current.children.forEach((b, i) => {
+        const phase = (t + i / 4) % 1;
+        // 沿卸灰溜槽：螺旋机尾端 → 集灰斗
+        b.position.set(26.85 + phase * 0.95, -1.68 + phase * 1.98, -3.5);
+        b.scale.setScalar(0.8);
+      });
+    }
+  });
+
+  return (
+    <group>
+      {/* 顶部绝缘子室 ×4 */}
+      {[45, 135, 225, 315].map((deg) => {
+        const a = (deg * Math.PI) / 180;
+        return (
+          <mesh key={deg} position={[25 + Math.cos(a) * 1.35, 6.75, -3.5 + Math.sin(a) * 1.35]}>
+            <boxGeometry args={[0.36, 0.42, 0.36]} />
+            <meshStandardMaterial color="#54627a" metalness={0.55} roughness={0.5} />
+          </mesh>
+        );
+      })}
+      {/* 阴极振打电机 ×2 */}
+      {[-1.78, 1.78].map((dx) => (
+        <mesh key={dx} position={[25 + dx, 5.9, -3.5]}>
+          <boxGeometry args={[0.32, 0.4, 0.32]} />
+          <meshStandardMaterial color="#334155" metalness={0.55} roughness={0.45} />
+        </mesh>
+      ))}
+      {/* 底部灰斗 ×4 */}
+      {[-0.85, 0.85].flatMap((dx) =>
+        [-0.85, 0.85].map((dz) => (
+          <mesh key={`${dx}-${dz}`} position={[25 + dx, -0.56, -3.5 + dz]}>
+            <cylinderGeometry args={[0.62, 0.1, 1.15, 12]} />
+            <meshStandardMaterial color="#475569" metalness={0.55} roughness={0.5} />
+          </mesh>
+        ))
+      )}
+      {/* 集灰螺旋输送机：U 型槽 + 旋转螺旋叶 + 支腿 */}
+      <mesh position={[25, -1.95, -3.5]}>
+        <boxGeometry args={[3.7, 0.25, 0.5]} />
+        <meshStandardMaterial color="#475569" metalness={0.55} roughness={0.5} />
+      </mesh>
+      <mesh position={[25, -1.75, -3.5]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.08, 0.08, 3.7, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <group ref={screwRef} position={[25, -1.75, -3.5]}>
+        {Array.from({ length: 6 }).map((_, i) => (
+          <group key={i} position={[-1.25 + i * 0.5, 0, 0]} rotation={[i * 0.7, 0, 0]}>
+            <mesh position={[0, 0.26, 0]}>
+              <boxGeometry args={[0.04, 0.55, 0.18]} />
+              <meshStandardMaterial color="#cbd5e1" metalness={0.6} roughness={0.35} />
+            </mesh>
+          </group>
+        ))}
+      </group>
+      {[23.7, 26.3].map((lx) => (
+        <mesh key={lx} position={[lx, -0.975, -3.5]}>
+          <boxGeometry args={[0.1, 1.95, 0.1]} />
+          <meshStandardMaterial color="#475569" metalness={0.5} roughness={0.55} />
+        </mesh>
+      ))}
+      {/* 卸灰溜槽 + 集灰斗 + 卸灰珠 */}
+      <mesh position={[27.3, -0.72, -3.5]} rotation={[0, 0, 1.116]}>
+        <boxGeometry args={[2.28, 0.06, 0.36]} />
+        <meshStandardMaterial color="#475569" metalness={0.55} roughness={0.5} />
+      </mesh>
+      <mesh position={[27.8, 0.3, -3.5]}>
+        <boxGeometry args={[0.8, 0.6, 0.8]} />
+        <meshStandardMaterial color="#54627a" metalness={0.5} roughness={0.55} />
+      </mesh>
+      <group ref={beadsRef}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <mesh key={i}>
+            <sphereGeometry args={[0.1, 8, 8]} />
+            <meshStandardMaterial color="#8d99a6" roughness={0.9} />
+          </mesh>
+        ))}
+      </group>
+      {/* 高压整流柜（运行指示灯） */}
+      <mesh position={[23.0, 0.575, -2.2]}>
+        <boxGeometry args={[0.75, 1.15, 0.55]} />
+        <meshStandardMaterial color="#334155" metalness={0.5} roughness={0.5} />
+      </mesh>
+      <mesh position={[23.0, 1.2, -1.91]}>
+        <sphereGeometry args={[0.04, 8, 8]} />
+        <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.2} />
+      </mesh>
+      {/* 检修爬梯 */}
+      <Ladder x={25} z={-1.62} h={5.9} y0={0.3} />
+    </group>
+  );
+}
+
+/** 脱硫塔细节：石灰石浆液罐 + 输浆管 + 氧化风机 + 塔身爬梯 */
+function DesulfExtras() {
+  return (
+    <group>
+      {/* 石灰石浆液罐：基础 + 罐体 + 锥顶 + 搅拌电机 + 液位计 + 爬梯 */}
+      <mesh position={[31.2, 0.075, -2.0]}>
+        <boxGeometry args={[2.1, 0.15, 2.1]} />
+        <meshStandardMaterial color="#b6bcc4" roughness={0.92} />
+      </mesh>
+      <mesh position={[31.2, 1.35, -2.0]}>
+        <cylinderGeometry args={[0.78, 0.78, 2.1, 18]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.5} roughness={0.5} />
+      </mesh>
+      <mesh position={[31.2, 2.6, -2.0]}>
+        <cylinderGeometry args={[0.78, 0.18, 0.45, 18]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.5} roughness={0.5} />
+      </mesh>
+      <mesh position={[31.2, 2.98, -2.0]}>
+        <boxGeometry args={[0.32, 0.42, 0.32]} />
+        <meshStandardMaterial color="#334155" metalness={0.55} roughness={0.45} />
+      </mesh>
+      <mesh position={[30.45, 1.35, -2.0]}>
+        <boxGeometry args={[0.14, 0.85, 0.09]} />
+        <meshStandardMaterial color="#cbd5e1" roughness={0.6} />
+      </mesh>
+      <Ladder x={31.2} z={-1.15} h={2.4} y0={0.15} />
+      {/* 输浆管：罐顶 → 立管 → 塔身（y 4.5 汇入） */}
+      <mesh position={[31.2, 2.7, -2.3]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.09, 0.09, 0.85, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh position={[31.2, 3.6, -2.6]}>
+        <cylinderGeometry args={[0.09, 0.09, 1.85, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh position={[30.2, 4.5, -2.6]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.09, 0.09, 2.0, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      {/* 氧化风机：基础 + 机体 + 电机 + 曝气管入塔 */}
+      <mesh position={[26.9, 0.075, -1.9]}>
+        <boxGeometry args={[0.95, 0.15, 0.95]} />
+        <meshStandardMaterial color="#b6bcc4" roughness={0.92} />
+      </mesh>
+      <mesh position={[26.9, 0.6, -1.9]}>
+        <boxGeometry args={[0.62, 0.8, 0.62]} />
+        <meshStandardMaterial color="#334155" metalness={0.55} roughness={0.45} />
+      </mesh>
+      <mesh position={[26.9, 0.6, -1.25]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.16, 0.16, 0.45, 12]} />
+        <meshStandardMaterial color="#1d4ed8" metalness={0.55} roughness={0.45} />
+      </mesh>
+      <mesh position={[26.9, 0.9, -2.35]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.08, 0.08, 0.6, 10]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      {/* 塔身爬梯 */}
+      <Ladder x={28.1} z={-1.92} h={6.6} y0={0.3} />
+    </group>
+  );
+}
+
+/** 烟囱细节：红白航空色环 / 检修平台 ×2 / 直爬梯 / 航空障碍灯（闪烁，夜间光晕）/ CEMS 分析小屋 */
+function StackExtras({ night }: { night: boolean }) {
+  const lampRef = React.useRef<THREE.Mesh>(null);
+  const lightRef = React.useRef<THREE.PointLight>(null);
+
+  useFrame((state) => {
+    const pulse = Math.max(0, Math.sin(state.clock.elapsedTime * 2.6));
+    const p = pulse * pulse * pulse;
+    if (lampRef.current) (lampRef.current.material as THREE.MeshBasicMaterial).opacity = 0.25 + 0.75 * p;
+    if (lightRef.current) lightRef.current.intensity = p * (night ? 6 : 0);
+  });
+
+  return (
+    <group>
+      {/* 红白航空色环 ×2 + 顶帽 */}
+      <mesh position={[32.7, 9.9, -3.5]}>
+        <cylinderGeometry args={[0.578, 0.578, 0.55, 14]} />
+        <meshStandardMaterial color="#dc2626" roughness={0.7} />
+      </mesh>
+      <mesh position={[32.7, 10.6, -3.5]}>
+        <cylinderGeometry args={[0.565, 0.565, 0.55, 14]} />
+        <meshStandardMaterial color="#e5e7eb" roughness={0.7} />
+      </mesh>
+      <mesh position={[32.7, 11.05, -3.5]}>
+        <cylinderGeometry args={[0.56, 0.56, 0.12, 14]} />
+        <meshStandardMaterial color="#4b5563" roughness={0.7} />
+      </mesh>
+      {/* 检修平台 ×2（环梁 + 立柱栏杆 + 顶杆） */}
+      {[4.2, 7.8].map((py) => (
+        <group key={py} position={[32.7, py, -3.5]}>
+          <mesh rotation={[Math.PI / 2, 0, 0]}>
+            <torusGeometry args={[1.08, 0.04, 8, 32]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+          </mesh>
+          {Array.from({ length: 8 }).map((_, i) => {
+            const a = (i / 8) * Math.PI * 2;
+            return (
+              <mesh key={i} position={[Math.cos(a) * 1.05, 0.27, Math.sin(a) * 1.05]}>
+                <boxGeometry args={[0.035, 0.55, 0.035]} />
+                <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+              </mesh>
+            );
+          })}
+          <mesh rotation={[Math.PI / 2, 0, 0]} position={[0, 0.55, 0]}>
+            <torusGeometry args={[1.05, 0.026, 8, 32]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+          </mesh>
+        </group>
+      ))}
+      {/* 直爬梯（落地 → 顶部平台下） */}
+      <Ladder x={32.7} z={-2.7} h={9.6} y0={0.5} />
+      {/* 航空障碍灯（顶部，脉冲闪烁） */}
+      <mesh ref={lampRef} position={[32.7, 11.22, -3.5]}>
+        <sphereGeometry args={[0.1, 10, 10]} />
+        <meshBasicMaterial color="#ef4444" transparent opacity={0.8} />
+      </mesh>
+      <pointLight ref={lightRef} position={[32.7, 11.3, -3.5]} color="#ef4444" intensity={0} distance={10} />
+      {/* CEMS 分析小屋：基础 + 房体 + 屋顶 + 门 + 空调外机 */}
+      <mesh position={[34.6, 0.08, -1.4]}>
+        <boxGeometry args={[2.0, 0.16, 1.5]} />
+        <meshStandardMaterial color="#b6bcc4" roughness={0.92} />
+      </mesh>
+      <mesh position={[34.6, 0.84, -1.4]}>
+        <boxGeometry args={[1.6, 1.35, 1.2]} />
+        <meshStandardMaterial color="#e2e8f0" roughness={0.8} />
+      </mesh>
+      <mesh position={[34.6, 1.55, -1.4]}>
+        <boxGeometry args={[1.85, 0.08, 1.45]} />
+        <meshStandardMaterial color="#64748b" metalness={0.4} roughness={0.6} />
+      </mesh>
+      <mesh position={[34.3, 0.55, -0.78]}>
+        <boxGeometry args={[0.42, 0.72, 0.04]} />
+        <meshStandardMaterial color="#334155" roughness={0.6} />
+      </mesh>
+      <mesh position={[35.5, 0.35, -1.2]}>
+        <boxGeometry args={[0.35, 0.32, 0.28]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.4} roughness={0.6} />
+      </mesh>
+      {/* 采样管：烟囱壁 → 横管 → 小屋顶 */}
+      <mesh position={[32.7, 3.0, -2.1]} rotation={[Math.PI / 2, 0, 0]}>
+        <cylinderGeometry args={[0.05, 0.05, 1.3, 8]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh position={[33.65, 3.0, -1.45]} rotation={[0, 0, Math.PI / 2]}>
+        <cylinderGeometry args={[0.05, 0.05, 1.9, 8]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+      <mesh position={[34.6, 2.2, -1.45]}>
+        <cylinderGeometry args={[0.05, 0.05, 1.6, 8]} />
+        <meshStandardMaterial color="#94a3b8" metalness={0.6} roughness={0.4} />
+      </mesh>
+    </group>
+  );
+}
+
+/** 照明灯塔 ×3（夜间发光 + 暖色投光） */
+function LightPoles({ night }: { night: boolean }) {
+  const spots = [-24, 2, 28];
+  return (
+    <>
+      {spots.map((x) => (
+        <group key={x} position={[x, 0, 6.4]}>
+          <mesh position={[0, 0.12, 0]}>
+            <boxGeometry args={[0.55, 0.24, 0.55]} />
+            <meshStandardMaterial color="#9aa2ab" roughness={0.9} />
+          </mesh>
+          <mesh position={[0, 3.5, 0]}>
+            <cylinderGeometry args={[0.07, 0.09, 7, 10]} />
+            <meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, 6.92, 0.55]}>
+            <boxGeometry args={[0.08, 0.08, 1.15]} />
+            <meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.5} />
+          </mesh>
+          <mesh position={[0, 6.85, 1.1]}>
+            <boxGeometry args={[0.48, 0.12, 0.34]} />
+            <meshStandardMaterial
+              color="#e2e8f0"
+              emissive="#fef3c7"
+              emissiveIntensity={night ? 1.4 : 0.05}
+              roughness={0.6}
+            />
+          </mesh>
+          {night && (
+            <pointLight position={[0, 6.6, 1.1]} color="#fde68a" intensity={9} distance={20} decay={2} />
+          )}
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** 主烟道支架 ×3（双柱 + 横梁，避开窑头罩/锅炉/电收尘轮廓） */
+function PipeRacks() {
+  const racks: { x: number; y: number }[] = [
+    { x: 16.4, y: 6.1 },
+    { x: 22.0, y: 6.1 },
+    { x: 31.5, y: 6.4 },
+  ];
+  return (
+    <>
+      {racks.map((r) => (
+        <group key={r.x} position={[r.x, 0, -3.5]}>
+          {[-0.75, 0.75].map((dz) => (
+            <mesh key={dz} position={[0, r.y / 2, dz]}>
+              <cylinderGeometry args={[0.09, 0.09, r.y, 10]} />
+              <meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.55} />
+            </mesh>
+          ))}
+          <mesh position={[0, r.y - 0.15, 0]}>
+            <boxGeometry args={[0.16, 0.16, 1.9]} />
+            <meshStandardMaterial color="#64748b" metalness={0.5} roughness={0.55} />
+          </mesh>
+        </group>
+      ))}
+    </>
+  );
+}
+
+/** 厂区地物：设备混凝土地坪 ×5 + 厂区道路 + 中央虚线 */
+function SiteGround() {
+  const pads: [number, number, number, number][] = [
+    [19, -3.5, 5.2, 4.4],
+    [25, -3.5, 4.8, 4.8],
+    [28.1, -3.5, 4.2, 4.2],
+    [29.9, -0.9, 3.2, 3.2],
+    [32.7, -3.5, 2.6, 2.6],
+  ];
+  return (
+    <group>
+      {pads.map(([x, z, w, d]) => (
+        <mesh key={`${x}-${z}`} position={[x, 0.07, z]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[w, d]} />
+          <meshStandardMaterial color="#b6bcc4" roughness={0.95} />
+        </mesh>
+      ))}
+      {/* 厂区道路 + 中央虚线 */}
+      <mesh position={[5, 0.04, 8.2]} rotation={[-Math.PI / 2, 0, 0]}>
+        <planeGeometry args={[70, 2.6]} />
+        <meshStandardMaterial color="#8a949c" roughness={0.95} />
+      </mesh>
+      {Array.from({ length: 16 }).map((_, i) => (
+        <mesh key={i} position={[-26 + i * 4.2, 0.07, 8.2]} rotation={[-Math.PI / 2, 0, 0]}>
+          <planeGeometry args={[1.3, 0.12]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.9} />
+        </mesh>
+      ))}
+    </group>
+  );
+}
+
+/** 设备名称标签（与数据标签独立开关，纯展示不拦截鼠标；坐标 = 场景组局部坐标） */
 function EquipmentLabels({ visible }: { visible: boolean }) {
   if (!visible) return null;
   const items: { pos: [number, number, number]; name: string }[] = [
-    { pos: [-16.6, 10.2, 0], name: "球团仓" },
+    { pos: [-33.5, 3.4, 0], name: "球团料场" },
+    { pos: [-24.5, 8.8, 0], name: "上料皮带" },
+    { pos: [-16.6, 11.4, 0], name: "球团仓" },
     { pos: [9.2, KILN_Y + TILT * 9.2 + 2.0, 3.4], name: "主传动" },
     { pos: [16.1, 3.5, 3.0], name: "水淬池" },
-    { pos: [15.0, 7.6, -3.5], name: "余热锅炉" },
-    { pos: [21.0, 9.0, -3.5], name: "电收尘" },
-    { pos: [24.1, 10.0, -3.5], name: "脱硫塔" },
-    { pos: [25.9, 4.6, -0.9], name: "引风机" },
-    { pos: [28.7, 12.6, -3.5], name: "烟囱" },
+    { pos: [17.8, 3.8, 6.2], name: "捞渣机" },
+    { pos: [19.0, 7.6, -3.5], name: "余热锅炉" },
+    { pos: [25.0, 9.0, -3.5], name: "电收尘" },
+    { pos: [28.1, 10.0, -3.5], name: "脱硫塔" },
+    { pos: [32.4, 4.8, -1.8], name: "浆液罐" },
+    { pos: [29.9, 4.6, -0.9], name: "引风机" },
+    { pos: [34.8, 3.2, -1.2], name: "CEMS 小屋" },
+    { pos: [32.7, 12.6, -3.5], name: "烟囱" },
   ];
   return (
     <>
@@ -956,8 +1916,8 @@ export interface ViewPreset {
 
 export const VIEW_PRESETS: Record<string, ViewPreset> = {
   overview: { name: "全景", pos: [30, 14, 26], target: [2, 4, 0] },
-  headClose: { name: "窑头特写", pos: [16, 7.5, 10], target: [9.5, 3.6, 0] },
-  tailClose: { name: "窑尾特写", pos: [-28, 9.5, 12], target: [-17.5, 5, 0] },
+  headClose: { name: "窑头特写", pos: [21, 9.5, 14], target: [10.5, 4, 0] },
+  tailClose: { name: "窑尾特写", pos: [-34, 11.5, 18], target: [-16.5, 6, 0] },
   gas: { name: "烟气处理", pos: [33, 12, 14], target: [21, 6, -3] },
 };
 
@@ -967,8 +1927,10 @@ function TelemetryLabels({ telemetry, visible }: { telemetry: KilnTelemetry; vis
   const items: { pos: [number, number, number]; label: string; value: string; unit: string }[] = [
     { pos: [-SHELL_LEN / 2 - 1, KILN_Y + 3.2, 0], label: "窑尾温度", value: fmt(telemetry.tailTemp), unit: "℃" },
     { pos: [SHELL_LEN / 2 + 1, KILN_Y + 3.4, 0], label: "窑头温度", value: fmt(telemetry.headTemp), unit: "℃" },
-    { pos: [-SHELL_LEN / 2 - 4.5, KILN_Y + 4.6, 0], label: "给料频率", value: fmt(telemetry.feedFreq), unit: "Hz" },
+    { pos: [-14.6, 9.2, 1.8], label: "给料频率", value: fmt(telemetry.feedFreq), unit: "Hz" },
     { pos: [SHELL_LEN / 2 + 3, KILN_Y - 2.2, 3.2], label: "CO 浓度", value: fmt(telemetry.co, 3), unit: "%" },
+    { pos: [19, 9.0, -3.5], label: "锅筒压力", value: fmt(telemetry.boilerPressure, 2), unit: "MPa" },
+    { pos: [29.9, 6.7, -0.9], label: "风机阀开度", value: fmt(telemetry.fanValve, 1), unit: "%" },
   ];
   return (
     <>
@@ -1027,7 +1989,7 @@ export function KilnTwin({
   /** 相机预设视角（key 变化触发一次平滑飞行） */
   view?: { key: number; preset: ViewPreset } | null;
   onSegmentClick?: (index: number, temp: number) => void;
-  /** 点击场景设备（窑头罩/给料圆盘/余热锅炉/电收尘/烟囱）弹出信息卡 */
+  /** 点击场景设备（10 类关键设备）弹出信息卡 */
   onDeviceClick?: (info: TwinDeviceInfo) => void;
 }) {
   const bg = night ? "#0b1220" : "#eef4f4";
@@ -1041,19 +2003,34 @@ export function KilnTwin({
         scene.fog = new THREE.Fog(bg, 60, 140);
       }}
     >
-      <ambientLight intensity={night ? 0.3 : 0.75} />
-      <directionalLight position={[18, 30, 12]} intensity={night ? 0.35 : 1.1} />
-      <directionalLight position={[-20, 16, -14]} intensity={night ? 0.15 : 0.35} />
+      <ambientLight intensity={night ? 0.3 : 0.9} />
+      <directionalLight position={[18, 30, 12]} intensity={night ? 0.35 : 1.2} />
+      <directionalLight position={[-20, 16, -14]} intensity={night ? 0.15 : 0.45} />
       {/* 夜间补光：窑体上方青色氛围光 */}
       {night && <pointLight position={[0, 16, 8]} color="#2dd4bf" intensity={12} distance={50} />}
 
       <group position={[-4, 0, 0]}>
+        <FeedConveyor telemetry={telemetry} onDeviceClick={onDeviceClick} />
+        <KilnFoundations />
         <KilnBody telemetry={telemetry} xray={xray} onSegmentClick={onSegmentClick} />
         <KilnHead telemetry={telemetry} onDeviceClick={onDeviceClick} />
+        <HeadPlatform telemetry={telemetry} />
         <FeedEnd telemetry={telemetry} onDeviceClick={onDeviceClick} />
         <DriveUnit telemetry={telemetry} />
-        <SlagQuench telemetry={telemetry} />
+        <SlagQuench telemetry={telemetry} onDeviceClick={onDeviceClick} />
+        <QuenchExtras telemetry={telemetry} />
         <GasTrain telemetry={telemetry} onDeviceClick={onDeviceClick} />
+        <BoilerExtras telemetry={telemetry} />
+        <EspExtras />
+        <DesulfExtras />
+        <StackExtras night={night} />
+        <LightPoles night={night} />
+        <PipeRacks />
+        <SiteGround />
+
+        {/* 数据/设备标签与设备同坐标系（组内），保证指位准确 */}
+        <TelemetryLabels telemetry={telemetry} visible={showLabels} />
+        <EquipmentLabels visible={showDevices} />
       </group>
 
       {/* 地面 */}
@@ -1073,8 +2050,6 @@ export function KilnTwin({
       </mesh>
 
       <SceneAtmosphere night={night} />
-      <TelemetryLabels telemetry={telemetry} visible={showLabels} />
-      <EquipmentLabels visible={showDevices} />
       <CameraRig view={view} />
       <OrbitControls
         target={[2, 4, 0]}

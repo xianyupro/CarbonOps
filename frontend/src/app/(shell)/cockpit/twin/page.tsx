@@ -210,8 +210,8 @@ export default function KilnTwinPage() {
         <div>
           <h1 className="text-xl font-semibold">挥发窑数字孪生</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            1号回转挥发窑三维仿真 · 全流程设备（给料→焙烧→水淬→余热回收→收尘→脱硫→引风→排放）
-            由现场实时数据驱动 · 点击设备查看工艺详情（5s 刷新）
+            1号回转挥发窑三维仿真 · 全流程设备（上料→给料→焙烧→水淬→余热回收→收尘→脱硫→引风→排放）
+            由现场实时数据驱动 · 10 类关键设备可点击查看工艺详情（5s 刷新）
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -251,7 +251,8 @@ export default function KilnTwinPage() {
           </Button>
         ))}
         <span className="ml-2 text-xs text-muted-foreground/70">
-          点击场景中 窑头罩 / 给料圆盘 / 余热锅炉 / 电收尘 / 烟囱 / 筒体分段 查看详情
+          点击场景中 上料皮带 / 球团仓 / 给料圆盘 / 窑头罩 / 水淬池 / 余热锅炉 / 电收尘 / 脱硫塔 / 引风机
+          / 烟囱 / 筒体分段 查看详情
         </span>
       </div>
 
@@ -399,8 +400,9 @@ export default function KilnTwinPage() {
       <p className="text-xs text-muted-foreground">
         操作：鼠标左键旋转 / 右键平移 / Ctrl+滚轮缩放。筒体颜色=轴向温度场（暗红→亮黄，右侧色带图例）；
         转速随主电机频率、料流与窑内物料推移速度随给料频率、火焰随窑头温度实时变化；主传动小齿轮与筒体反向联动，
-        水淬池蒸汽速率随给料频率，引风机叶轮常转，烟气经 余热锅炉→电收尘→脱硫塔→引风机→烟囱 全链路呈现；
-        开启「窑内透视」可观察物料自窑尾向窑头推移。
+        皮带料流与捞渣机随给料频率、锅炉安全阀蒸汽随锅筒压力、烟囱烟气与烟气流向粒子随风机阀开度；
+        电收尘集灰螺旋连续卸灰，烟气经 余热锅炉→电收尘→脱硫塔→引风机→烟囱 全链路呈现；
+        开启「窑内透视」可观察物料自窑尾向窑头推移；夜间模式下照明灯塔与烟囱航空障碍灯点亮。
       </p>
     </div>
   );
