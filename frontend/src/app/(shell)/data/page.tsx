@@ -2,19 +2,21 @@
 
 /**
  * ① 数据基座工作台。
- * 主界面：数据可视化分析台；数据源管理 / 离线导入 / 数据质量 以子窗口弹窗呈现。
+ * 主界面：数据可视化分析台；顶部为平台资源统计条；
+ * 数据源管理 / 离线导入 / 数据质量 以居中子窗口弹窗呈现。
  */
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { Database, ShieldCheck, Upload } from "lucide-react";
+import { Database, Gauge, ShieldCheck, Upload } from "lucide-react";
 
+import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ModuleToolbar } from "@/components/layout/ModuleToolbar";
 
 const VisualizePage = dynamic(() => import("@/app/(shell)/data/visualize/page"), {
@@ -50,8 +52,42 @@ const SUB_TITLES: Record<"sources" | "imports" | "quality", string> = {
   quality: "数据质量",
 };
 
+interface HubStats {
+  dataSourceCount: number;
+  pointCount: number;
+  onlineRate: number;
+  completenessRate: number;
+}
+
 export default function DataHubPage() {
   const [sub, setSub] = React.useState<SubWindow>(null);
+  const [stats, setStats] = React.useState<HubStats | null>(null);
+
+  React.useEffect(() => {
+    api.dashboard
+      .overview()
+      .then((o) =>
+        setStats({
+          dataSourceCount: o.dataSourceCount,
+          pointCount: o.pointCount,
+          onlineRate:
+            o.dataSourceCount > 0
+              ? Math.round((o.onlineSourceCount / o.dataSourceCount) * 100)
+              : 0,
+          completenessRate: Math.round(o.avgCompletenessRate ?? 0),
+        })
+      )
+      .catch(() => {});
+  }, []);
+
+  const counters = stats
+    ? [
+        { icon: Database, label: "接入数据源", value: String(stats.dataSourceCount).padStart(2, "0"), unit: "个" },
+        { icon: Gauge, label: "采集点位", value: String(stats.pointCount).padStart(3, "0"), unit: "个" },
+        { icon: Upload, label: "在线率", value: `${stats.onlineRate}`, unit: "%" },
+        { icon: ShieldCheck, label: "数据完整率", value: `${stats.completenessRate}`, unit: "%" },
+      ]
+    : [];
 
   return (
     <div className="flex flex-col gap-3">
@@ -74,24 +110,50 @@ export default function DataHubPage() {
         }
       />
 
+      {/* 资源统计条 */}
+      {counters.length > 0 && (
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+          {counters.map((c) => {
+            const Icon = c.icon;
+            return (
+              <div
+                key={c.label}
+                className="flex items-center gap-2.5 border border-border bg-card px-3 py-2"
+              >
+                <span className="flex h-7 w-7 items-center justify-center rounded-sm bg-primary/10 text-primary">
+                  <Icon className="h-3.5 w-3.5" />
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate text-[10px] text-muted-foreground">{c.label}</p>
+                  <p className="font-cyber text-base font-bold leading-tight tabular-nums">
+                    {c.value}
+                    <span className="ml-0.5 text-[10px] font-normal text-slate-400">{c.unit}</span>
+                  </p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* 主工作区：数据可视化分析台 */}
       <VisualizePage />
 
-      {/* 二级功能子窗口 */}
-      <Sheet open={sub != null} onOpenChange={(o) => !o && setSub(null)}>
-        <SheetContent className="w-[88%] max-w-[1100px] overflow-y-auto scrollbar-thin p-5 sm:max-w-[1100px]">
-          <SheetHeader className="px-0">
-            <SheetTitle className="text-base">
+      {/* 二级功能子窗口（居中弹窗） */}
+      <Dialog open={sub != null} onOpenChange={(o) => !o && setSub(null)}>
+        <DialogContent className="flex h-[86vh] max-w-[min(1100px,94vw)] flex-col p-5">
+          <DialogHeader className="px-0">
+            <DialogTitle className="text-base">
               ① 数据基座 · {sub ? SUB_TITLES[sub] : ""}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="px-0 pb-6">
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-1">
             {sub === "sources" && <SourcesPage />}
             {sub === "imports" && <ImportsPage />}
             {sub === "quality" && <QualityPage />}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

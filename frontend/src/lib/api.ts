@@ -72,6 +72,9 @@ import type {
   ComponentDef,
   ComponentRegistry,
   ScreenConfigItem,
+  DbBackup,
+  DbStats,
+  SystemTask,
   FlowGraph,
   FlowProject,
   FlowRun,
@@ -534,6 +537,21 @@ export const api = {
     run: (id: number) =>
       request<FlowRun>("POST", `/flows/${id}/run`, { body: { mode: "once" } }),
     runs: (id: number) => request<FlowRun[]>("GET", `/flows/${id}/runs`),
+  },
+
+  systemAdmin: {
+    settings: () => request<Record<string, string>>("GET", "/system-admin/settings"),
+    updateSettings: (items: Record<string, string>) =>
+      request<{ done: boolean }>("PUT", "/system-admin/settings", { body: { items } }),
+    dbStats: () => request<DbStats>("GET", "/system-admin/db/stats"),
+    backups: () => request<DbBackup[]>("GET", "/system-admin/db/backups"),
+    createBackup: () =>
+      request<{ name: string; size: number }>("POST", "/system-admin/db/backups"),
+    deleteBackup: (name: string) =>
+      request<{ done: boolean }>("DELETE", `/system-admin/db/backups/${encodeURIComponent(name)}`),
+    backupDownloadUrl: (name: string) =>
+      buildUrl(`/system-admin/db/backups/${encodeURIComponent(name)}/download`),
+    tasks: () => request<SystemTask[]>("GET", "/system-admin/tasks"),
   },
 
   screens: {

@@ -15,6 +15,7 @@ from .metamodel import Metamodel, MetamodelVersion  # noqa: F401
 from .kg import KgNode, KgEdge, KgLink  # noqa: F401
 from .flow import ComponentDef, FlowProject, FlowRun  # noqa: F401
 from .screen import ScreenConfig  # noqa: F401
+from .system import SystemSetting  # noqa: F401
 from .platform import Scenario, Alarm, FormConfig  # noqa: F401
 
 __all__ = [
@@ -42,6 +43,7 @@ __all__ = [
     "FlowProject",
     "FlowRun",
     "ScreenConfig",
+    "SystemSetting",
     "Scenario",
     "Alarm",
     "FormConfig",

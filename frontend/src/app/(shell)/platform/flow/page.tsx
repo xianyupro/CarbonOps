@@ -23,6 +23,12 @@ import {
   Square,
   Trash2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 import { api } from "@/lib/api";
 import type {
@@ -237,6 +243,7 @@ export default function FlowEditorPage() {
   const [rightTab, setRightTab] = React.useState<"params" | "run">("params");
   const [dirty, setDirty] = React.useState(false);
   const [activeLog, setActiveLog] = React.useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
   const [, force] = React.useState(0);
 
   const compByCode = React.useMemo(() => {
@@ -253,7 +260,15 @@ export default function FlowEditorPage() {
     const graph: Graph = new Graph({
       container: containerRef.current,
       background: { color: "#f8fafc" },
-      grid: { size: 20, type: "dot", args: { color: "#cbd5e1", thickness: 1 } },
+      grid: {
+        size: 20,
+        visible: true,
+        type: "doubleMesh",
+        args: [
+          { color: "#edf2f8", thickness: 1 },
+          { color: "#dbe4ee", thickness: 1 },
+        ],
+      },
       // 右键拖动画布；滚轮直接缩放（工业编辑器惯例）
       panning: { enabled: true, eventTypes: ["rightMouseDown"] },
       // X6 v2：mousewheel 内置组件必须显式 enabled 才会激活；modifiers=[] 表示无需修饰键
@@ -329,6 +344,11 @@ export default function FlowEditorPage() {
     graph.on("node:click", ({ node }: { node: X6Node }) => {
       setSelectedNode(node);
       setRightTab("params");
+    });
+    graph.on("node:dblclick", ({ node }: { node: X6Node }) => {
+      setSelectedNode(node);
+      setRightTab("params");
+      setSettingsOpen(true);
     });
     graph.on("blank:click", () => setSelectedNode(null));
     graph.on("node:moved", () => setDirty(true));
@@ -614,126 +634,11 @@ export default function FlowEditorPage() {
     });
   }, [selectedNode, compByCode, registry]);
 
-  return (
-    <div className="flex h-[calc(100vh-96px)] gap-3">
-      {/* ===== 左侧：组件库 ===== */}
-      <div className="flex w-56 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        <div className="border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground">
-          组件库
-        </div>
-        <div className="flex-1 overflow-y-auto scrollbar-thin p-2">
-          {Object.entries(registry?.groups ?? {}).map(([cat, comps]) => (
-            <div key={cat} className="mb-3">
-              <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {cat}
-              </p>
-              <div className="space-y-1">
-                {comps.map((c) => (
-                  <div
-                    key={c.code}
-                    title={c.description ?? ""}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData("application/x-component", c.code);
-                      e.dataTransfer.effectAllowed = "copy";
-                    }}
-                    onClick={() => addComponentAt(c)}
-                    className="group flex w-full cursor-grab items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:border-border hover:bg-accent active:cursor-grabbing"
-                  >
-                    <span
-                      className="h-2 w-2 shrink-0 rounded-full"
-                      style={{ background: c.uiConfig?.color ?? "#64748b" }}
-                    />
-                    <span className="truncate font-medium">{c.name}</span>
-                    <Plus className="ml-auto h-3 w-3 opacity-0 group-hover:opacity-60" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="border-t border-border p-2 text-[10px] leading-relaxed text-muted-foreground">
-          拖拽组件到画布（或点击添加）；从端口拖出连线：实线=控制流、虚线=数据流；
-          滚轮缩放、右键拖动画布
-        </div>
-      </div>
-
-      {/* ===== 中部：画布 + 工具栏 ===== */}
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
-          <Select
-            value={currentId != null ? String(currentId) : undefined}
-            onValueChange={(v) => loadFlow(Number(v))}
-          >
-            <SelectTrigger className="w-40 h-8 text-xs">
-              <SelectValue placeholder="选择流程" />
-            </SelectTrigger>
-            <SelectContent>
-              {flows.map((f) => (
-                <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Input
-            className="h-8 w-40 text-xs"
-            value={flowName}
-            onChange={(e) => { setFlowName(e.target.value); setDirty(true); }}
-          />
-          {dirty && <span className="text-xs text-amber-600">未保存</span>}
-          <div className="ml-auto flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={tidyLayout} title="按执行顺序自动排列节点">
-              <LayoutGrid className="mr-1 h-3.5 w-3.5" /> 整理布局
-            </Button>
-            <Button size="sm" variant="outline" onClick={handleSave}>
-              <Save className="mr-1 h-3.5 w-3.5" /> 保存
-            </Button>
-            <Button size="sm" onClick={handleRun} disabled={running}>
-              {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
-              运行（仿真）
-            </Button>
-          </div>
-        </div>
-        <div
-          className="relative min-h-0 flex-1"
-          onDragOver={(e) => {
-            e.preventDefault();
-            e.dataTransfer.dropEffect = "copy";
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            const code = e.dataTransfer.getData("application/x-component");
-            const comp = compByCode.get(code);
-            if (!comp || !graphRef.current) return;
-            const local = graphRef.current.clientToLocal(e.clientX, e.clientY);
-            addComponentAt(comp, local.x - NODE_W / 2, local.y - 20);
-          }}
-        >
-          <div ref={containerRef} className="h-full" />
-          <div
-            ref={minimapRef}
-            className="absolute bottom-2.5 right-2.5 z-10 overflow-hidden rounded-md border border-border bg-white/95 shadow-md"
-          />
-        </div>
-      </div>
-
-      {/* ===== 右侧：参数 / 运行 ===== */}
-      <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
-        <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as "params" | "run")}>
-          <TabsList className="w-full rounded-none border-b border-border">
-            <TabsTrigger value="params" className="flex-1">参数配置</TabsTrigger>
-            <TabsTrigger value="run" className="flex-1">运行日志</TabsTrigger>
-          </TabsList>
-        </Tabs>
-
-        {rightTab === "params" ? (
-          <div className="flex-1 overflow-y-auto scrollbar-thin p-3">
-            {!selectedNode || !compOfSelected ? (
-              <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
-                <Square className="h-6 w-6 opacity-30" />
-                点击画布中的节点编辑参数
-              </div>
-            ) : (
-              <div className="space-y-4">
+  /** 节点参数配置表单（右侧面板与双击弹窗共用） */
+  function renderNodeConfig() {
+    if (!selectedNode || !compOfSelected) return null;
+    return (
+      <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="h-2.5 w-2.5 rounded-full" style={{ background: selectedNode.getData<EditorNodeData>().color }} />
@@ -858,11 +763,153 @@ export default function FlowEditorPage() {
                     })}
                   </div>
                 )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-[calc(100vh-96px)] gap-3">
+      {/* ===== 左侧：组件库 ===== */}
+      <div className="flex w-56 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <div className="border-b border-border px-3 py-2 text-xs font-semibold text-muted-foreground">
+          组件库
+        </div>
+        <div className="flex-1 overflow-y-auto scrollbar-thin p-2">
+          {Object.entries(registry?.groups ?? {}).map(([cat, comps]) => (
+            <div key={cat} className="mb-3">
+              <p className="mb-1 px-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                {cat}
+              </p>
+              <div className="space-y-1">
+                {comps.map((c) => (
+                  <div
+                    key={c.code}
+                    title={c.description ?? ""}
+                    draggable
+                    onDragStart={(e) => {
+                      e.dataTransfer.setData("application/x-component", c.code);
+                      e.dataTransfer.effectAllowed = "copy";
+                    }}
+                    onClick={() => addComponentAt(c)}
+                    className="group flex w-full cursor-grab items-center gap-2 rounded-md border border-transparent px-2 py-1.5 text-left text-xs hover:border-border hover:bg-accent active:cursor-grabbing"
+                  >
+                    <span
+                      className="h-2 w-2 shrink-0 rounded-full"
+                      style={{ background: c.uiConfig?.color ?? "#64748b" }}
+                    />
+                    <span className="truncate font-medium">{c.name}</span>
+                    <Plus className="ml-auto h-3 w-3 opacity-0 group-hover:opacity-60" />
+                  </div>
+                ))}
               </div>
+            </div>
+          ))}
+        </div>
+        <div className="border-t border-border p-2 text-[10px] leading-relaxed text-muted-foreground">
+          拖拽组件到画布（或点击添加）；从端口拖出连线：实线=控制流、虚线=数据流；
+          滚轮缩放、右键拖动画布
+        </div>
+      </div>
+
+      {/* ===== 中部：画布 + 工具栏 ===== */}
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+          <Select
+            value={currentId != null ? String(currentId) : undefined}
+            onValueChange={(v) => loadFlow(Number(v))}
+          >
+            <SelectTrigger className="w-40 h-8 text-xs">
+              <SelectValue placeholder="选择流程" />
+            </SelectTrigger>
+            <SelectContent>
+              {flows.map((f) => (
+                <SelectItem key={f.id} value={String(f.id)}>{f.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Input
+            className="h-8 w-40 text-xs"
+            value={flowName}
+            onChange={(e) => { setFlowName(e.target.value); setDirty(true); }}
+          />
+          {dirty && <span className="text-xs text-amber-600">未保存</span>}
+          <div className="ml-auto flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={tidyLayout} title="按执行顺序自动排列节点">
+              <LayoutGrid className="mr-1 h-3.5 w-3.5" /> 整理布局
+            </Button>
+            <Button size="sm" variant="outline" onClick={handleSave}>
+              <Save className="mr-1 h-3.5 w-3.5" /> 保存
+            </Button>
+            <Button size="sm" onClick={handleRun} disabled={running}>
+              {running ? <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" /> : <Play className="mr-1 h-3.5 w-3.5" />}
+              运行（仿真）
+            </Button>
+          </div>
+        </div>
+        <div
+          className="relative min-h-0 flex-1"
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            const code = e.dataTransfer.getData("application/x-component");
+            const comp = compByCode.get(code);
+            if (!comp || !graphRef.current) return;
+            const local = graphRef.current.clientToLocal(e.clientX, e.clientY);
+            addComponentAt(comp, local.x - NODE_W / 2, local.y - 20);
+          }}
+        >
+          <div ref={containerRef} className="h-full" />
+          <div
+            ref={minimapRef}
+            className="absolute bottom-2.5 right-2.5 z-10 overflow-hidden rounded-md border border-border bg-white/95 shadow-md"
+          />
+        </div>
+      </div>
+
+      {/* ===== 右侧：参数 / 运行 ===== */}
+      <div className="flex w-80 shrink-0 flex-col overflow-hidden rounded-lg border border-border bg-card">
+        <Tabs value={rightTab} onValueChange={(v) => setRightTab(v as "params" | "run")}>
+          <TabsList className="w-full rounded-none border-b border-border">
+            <TabsTrigger value="params" className="flex-1">参数配置</TabsTrigger>
+            <TabsTrigger value="run" className="flex-1">运行日志</TabsTrigger>
+          </TabsList>
+        </Tabs>
+
+        {rightTab === "params" ? (
+          <div className="flex-1 overflow-y-auto scrollbar-thin p-3">
+            {!selectedNode || !compOfSelected ? (
+              <div className="flex h-full flex-col items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Square className="h-6 w-6 opacity-30" />
+                点击画布中的节点编辑参数
+              </div>
+            ) : (
+              renderNodeConfig()
             )}
           </div>
         ) : (
           <div className="flex-1 space-y-2 overflow-y-auto scrollbar-thin p-3">
+            <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+              <DialogContent className="max-h-[82vh] overflow-y-auto sm:max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="text-base">
+                    节点设置
+                    {selectedNode ? (
+                      <span className="ml-2 text-sm font-normal text-muted-foreground">
+                        {selectedNode.getData<EditorNodeData>().name}
+                      </span>
+                    ) : null}
+                  </DialogTitle>
+                </DialogHeader>
+                {selectedNode && compOfSelected ? (
+                  renderNodeConfig()
+                ) : (
+                  <p className="text-xs text-muted-foreground">请先选择节点</p>
+                )}
+              </DialogContent>
+            </Dialog>
             {!runResult ? (
               <p className="pt-8 text-center text-xs text-muted-foreground">尚未运行；点击「运行（仿真）」执行当前流程</p>
             ) : (

@@ -2,8 +2,8 @@
 
 /**
  * KnowledgeGraphCanvas — react-force-graph-2d 封装（亮色质感版）。
- * 视觉：多层呼吸光晕 + 波纹环 + 标签白描边 + 曲线连线 + 方向箭头 + 路径流动粒子。
- * 交互：邻域聚焦淡化、路径高亮、点击回调、搜索定位。
+ * 视觉：多层呼吸光晕 + 波纹环 + 高光点 + 标签白描边 + 曲线连线 + 方向箭头 + 路径流动粒子。
+ * 交互：邻域聚焦淡化、路径高亮、节点拖拽固定（fx/fy）、右键菜单回调、重置视图、搜索定位。
  */
 import * as React from "react";
 import dynamic from "next/dynamic";
@@ -21,6 +21,9 @@ export interface GraphNode extends KgNode {
   color?: string;
   x?: number;
   y?: number;
+  /** 拖拽固定坐标（d3-force），null/undefined 表示自由 */
+  fx?: number | null;
+  fy?: number | null;
 }
 
 export interface GraphEdge extends KgEdge {
@@ -34,6 +37,12 @@ interface Props {
   selectedNodeId: number | null;
   highlightNodeIds?: Set<number> | null;
   onNodeClick?: (node: GraphNode) => void;
+  /** 节点右键（视口坐标） */
+  onNodeContextMenu?: (node: GraphNode, screenX: number, screenY: number) => void;
+  /** 空白处右键（视口坐标） */
+  onBackgroundContextMenu?: (screenX: number, screenY: number) => void;
+  /** 数值变化时：解除全部拖拽固定并适配缩放（重置视图） */
+  resetSignal?: number;
   width: number;
   height: number;
   focusNodeId?: number | null;
@@ -49,12 +58,30 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`;
 }
 
+/** tooltip 为 innerHTML 注入，需转义节点文本 */
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function edgeIds(e: GraphEdge): [number, number] {
+  const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
+  const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
+  return [s, t];
+}
+
 export function KnowledgeGraphCanvas({
   nodes,
   edges,
   selectedNodeId,
   highlightNodeIds,
   onNodeClick,
+  onNodeContextMenu,
+  onBackgroundContextMenu,
+  resetSignal,
   width,
   height,
   focusNodeId,
@@ -86,8 +113,7 @@ export function KnowledgeGraphCanvas({
   const neighborMap = React.useMemo(() => {
     const map = new Map<number, Set<number>>();
     for (const e of edges) {
-      const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
-      const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
+      const [s, t] = edgeIds(e);
       if (!map.has(s)) map.set(s, new Set());
       if (!map.has(t)) map.set(t, new Set());
       map.get(s)!.add(t);
@@ -106,6 +132,22 @@ export function KnowledgeGraphCanvas({
     }
     onFocusHandled?.();
   }, [focusNodeId, nodes, onFocusHandled]);
+
+  // 重置视图：解除全部拖拽固定 + 适配缩放
+  React.useEffect(() => {
+    if (!resetSignal) return;
+    for (const n of nodes) {
+      n.fx = null;
+      n.fy = null;
+    }
+    try {
+      fgRef.current?.zoomToFit(500, 60);
+    } catch {
+      /* 引擎未就绪时跳过 */
+    }
+    // 仅由 resetSignal 触发，nodes 取当前闭包即可
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resetSignal]);
 
   const isDimmed = (id: number) => {
     if (highlightNodeIds && highlightNodeIds.size > 0) return !highlightNodeIds.has(id);
@@ -132,6 +174,11 @@ export function KnowledgeGraphCanvas({
     }
   }, [graphData]);
 
+  const edgeInPath = (e: GraphEdge) => {
+    const [s, t] = edgeIds(e);
+    return (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) ?? false;
+  };
+
   return (
     <ForceGraph2D
       ref={fgRef as never}
@@ -142,10 +189,22 @@ export function KnowledgeGraphCanvas({
       autoPauseRedraw={false}
       cooldownTicks={200}
       warmupTicks={40}
+      enableNodeDrag
       nodeRelSize={5}
-      nodeLabel={(n: GraphNode) =>
-        `${n.name}\n${n.category}${n.description ? "\n" + n.description.slice(0, 60) : ""}`
-      }
+      nodeLabel={(n: GraphNode) => {
+        const color = n.color ?? categoryColor(n.category);
+        const desc = n.description ? escapeHtml(String(n.description).slice(0, 90)) : "";
+        return (
+          `<div style="max-width:280px;text-align:left;background:#ffffff;border:1px solid #e2e8f0;border-radius:8px;` +
+          `padding:8px 10px;color:#0f172a;font-family:Inter,system-ui,sans-serif;box-shadow:0 6px 20px rgba(15,23,42,0.14);">` +
+          `<div style="font-size:13px;font-weight:600;line-height:1.4;">${escapeHtml(n.name)}</div>` +
+          `<div style="margin-top:3px;font-size:11px;color:${color};">&#9679; ${escapeHtml(n.category)}</div>` +
+          (desc
+            ? `<div style="margin-top:4px;font-size:11px;line-height:1.5;color:#475569;">${desc}</div>`
+            : "") +
+          `</div>`
+        );
+      }}
       nodeCanvasObject={(node: GraphNode, ctx: CanvasRenderingContext2D, globalScale: number) => {
         const r = 4 + Math.sqrt(node.val ?? 1) * 1.8;
         const color = node.color ?? categoryColor(node.category);
@@ -186,7 +245,7 @@ export function KnowledgeGraphCanvas({
         }
         ctx.globalAlpha = dim ? 0.14 : 1;
 
-        // ③ 选中光环（脉动）
+        // ③ 选中/路径光环（脉动）
         if (selected || inPath) {
           const pulse = 1 + 0.12 * Math.sin(t * 3.2);
           ctx.beginPath();
@@ -200,7 +259,7 @@ export function KnowledgeGraphCanvas({
           ctx.stroke();
         }
 
-        // ④ 节点主体（微渐变 + 白描边 + 高光点）
+        // ④ 节点主体（微渐变 + 白描边）
         const body = ctx.createRadialGradient(
           x - r * 0.35, y - r * 0.35, r * 0.15, x, y, r
         );
@@ -211,11 +270,31 @@ export function KnowledgeGraphCanvas({
         ctx.arc(x, y, r, 0, Math.PI * 2);
         ctx.fillStyle = body;
         ctx.fill();
+
+        // ⑤ 镜面高光点（knowledgeT 质感：左上亮斑）
+        if (r > 2.5) {
+          ctx.beginPath();
+          ctx.arc(x - r * 0.32, y - r * 0.32, Math.max(r * 0.18, 1), 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(255,255,255,0.8)";
+          ctx.fill();
+        }
+
         ctx.strokeStyle = dim ? "rgba(255,255,255,0.6)" : "#ffffff";
         ctx.lineWidth = 1.4 / globalScale;
         ctx.stroke();
 
-        // ⑤ 枢纽徽章（度数≥6：红色小圆 + 数量）
+        // ⑥ 拖拽固定标记（左下小锚点）
+        if (node.fx != null && node.fy != null) {
+          ctx.beginPath();
+          ctx.arc(x - r * 0.75, y + r * 0.75, Math.max(r * 0.2, 1.6), 0, Math.PI * 2);
+          ctx.fillStyle = "rgba(71,85,105,0.9)";
+          ctx.fill();
+          ctx.strokeStyle = "#ffffff";
+          ctx.lineWidth = 1 / globalScale;
+          ctx.stroke();
+        }
+
+        // ⑦ 枢纽徽章（度数≥6：红色小圆 + 数量）
         const deg = neighborMap.get(node.id)?.size ?? 0;
         if (deg >= 6 && globalScale > 0.7) {
           const br = Math.max(r * 0.5, 3.2);
@@ -238,7 +317,7 @@ export function KnowledgeGraphCanvas({
           }
         }
 
-        // ⑥ 标签（白描边晕 + 深色字，保证亮底可读）
+        // ⑧ 标签（白描边晕 + 深色字，保证亮底可读）
         if (globalScale > 0.85 || deg >= 4 || selected) {
           const fontSize = Math.max(10 / globalScale, 3);
           const weight = deg >= 6 || selected ? 600 : 400;
@@ -257,9 +336,8 @@ export function KnowledgeGraphCanvas({
       }}
       linkCurvature={0.18}
       linkColor={(e: GraphEdge) => {
-        const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
-        const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
-        const inPath = highlightNodeIds?.has(s) && highlightNodeIds?.has(t);
+        const [s, t] = edgeIds(e);
+        const inPath = (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) ?? false;
         if (inPath) return "#0d9488";
         if (selectedNodeId != null && (s === selectedNodeId || t === selectedNodeId))
           return "rgba(13,148,136,0.9)";
@@ -269,34 +347,40 @@ export function KnowledgeGraphCanvas({
         return "rgba(100,116,139,0.5)";
       }}
       linkWidth={(e: GraphEdge) => {
-        const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
-        const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
-        if (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) return 2.4;
+        const [s, t] = edgeIds(e);
+        if (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) return 3;
         if (selectedNodeId != null && (s === selectedNodeId || t === selectedNodeId)) return 1.8;
         return 1.2;
       }}
-      linkDirectionalArrowLength={(e: GraphEdge) => {
-        const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
-        const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
-        return highlightNodeIds?.has(s) && highlightNodeIds?.has(t) ? 5 : 3;
-      }}
+      linkDirectionalArrowLength={(e: GraphEdge) => (edgeInPath(e) ? 6 : 3)}
       linkDirectionalArrowRelPos={1}
       linkDirectionalArrowColor={(e: GraphEdge) => {
-        const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
-        const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
+        const [s, t] = edgeIds(e);
         if (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) return "#0d9488";
         return "rgba(100,116,139,0.55)";
       }}
       linkDirectionalParticles={(e: GraphEdge) => {
-        const s = typeof e.source === "object" ? (e.source as GraphNode).id : e.source;
-        const t = typeof e.target === "object" ? (e.target as GraphNode).id : e.target;
-        if (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) return 4;
+        const [s, t] = edgeIds(e);
+        if (highlightNodeIds?.has(s) && highlightNodeIds?.has(t)) return 5;
         if (selectedNodeId != null && (s === selectedNodeId || t === selectedNodeId)) return 2;
         return 0;
       }}
-      linkDirectionalParticleWidth={2.6}
+      linkDirectionalParticleWidth={(e: GraphEdge) => (edgeInPath(e) ? 3.2 : 2.2)}
       linkDirectionalParticleSpeed={4}
       onNodeClick={(n: GraphNode) => onNodeClick?.(n)}
+      onNodeRightClick={(n: GraphNode, ev: MouseEvent) => {
+        ev.preventDefault();
+        onNodeContextMenu?.(n, ev.clientX, ev.clientY);
+      }}
+      onBackgroundRightClick={(ev: MouseEvent) => {
+        ev.preventDefault();
+        onBackgroundContextMenu?.(ev.clientX, ev.clientY);
+      }}
+      onNodeDragEnd={(n: GraphNode) => {
+        // 拖拽后固定位置（d3 fx/fy），再次拖动可更新，「重置视图」统一解除
+        n.fx = Number.isFinite(n.x) ? n.x : null;
+        n.fy = Number.isFinite(n.y) ? n.y : null;
+      }}
       onEngineStop={() => {
         try {
           fgRef.current?.zoomToFit(500, 50);

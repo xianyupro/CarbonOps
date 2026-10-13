@@ -2,26 +2,38 @@
 
 /**
  * 系统管理工作台。
- * 主界面：用户与权限；操作日志 以子窗口弹窗呈现。
+ * 视图切换：用户与权限 / 操作日志 / 系统设置 / 数据库与备份 / 定时任务。
  */
 import * as React from "react";
 import dynamic from "next/dynamic";
-import { ScrollText } from "lucide-react";
-
-import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
-import { ModuleToolbar } from "@/components/layout/ModuleToolbar";
+  CalendarClock,
+  Database,
+  ScrollText,
+  Settings,
+  Users,
+} from "lucide-react";
+
+import ModuleToolbar from "@/components/layout/ModuleToolbar";
+import { cn } from "@/lib/utils";
 
 const UsersPage = dynamic(() => import("@/app/(shell)/system/users/page"), {
   ssr: false,
   loading: () => <Loading />,
 });
 const LogsPage = dynamic(() => import("@/app/(shell)/system/logs/page"), {
+  ssr: false,
+  loading: () => <Loading />,
+});
+const SettingsPanel = dynamic(() => import("@/components/system/settings-panel"), {
+  ssr: false,
+  loading: () => <Loading />,
+});
+const DbPanel = dynamic(() => import("@/components/system/db-panel"), {
+  ssr: false,
+  loading: () => <Loading />,
+});
+const TasksPanel = dynamic(() => import("@/components/system/tasks-panel"), {
   ssr: false,
   loading: () => <Loading />,
 });
@@ -34,36 +46,69 @@ function Loading() {
   );
 }
 
+type View = "users" | "logs" | "settings" | "db" | "tasks";
+
+const VIEWS: { key: View; label: string; icon: React.ElementType }[] = [
+  { key: "users", label: "用户与权限", icon: Users },
+  { key: "logs", label: "操作日志", icon: ScrollText },
+  { key: "settings", label: "系统设置", icon: Settings },
+  { key: "db", label: "数据库与备份", icon: Database },
+  { key: "tasks", label: "定时任务", icon: CalendarClock },
+];
+
 export default function SystemHubPage() {
-  const [logsOpen, setLogsOpen] = React.useState(false);
+  const [view, setView] = React.useState<View>("users");
 
   return (
     <div className="flex flex-col gap-3">
       <ModuleToolbar
         badge=""
         module="系统管理"
-        view="用户与权限"
+        view={VIEWS.find((v) => v.key === view)?.label ?? ""}
         actions={
-          <Button variant="outline" size="sm" onClick={() => setLogsOpen(true)}>
-            <ScrollText className="mr-1 h-3.5 w-3.5" /> 操作日志
-          </Button>
+          <div className="flex flex-wrap items-center border border-border bg-card p-0.5">
+            {VIEWS.map((v) => {
+              const Icon = v.icon;
+              const active = view === v.key;
+              return (
+                <button
+                  key={v.key}
+                  onClick={() => setView(v.key)}
+                  className={cn(
+                    "flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors",
+                    active
+                      ? "bg-primary text-primary-foreground"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {v.label}
+                </button>
+              );
+            })}
+          </div>
         }
       />
 
-      {/* 主工作区：用户与权限 */}
-      <UsersPage />
-
-      {/* 操作日志子窗口 */}
-      <Sheet open={logsOpen} onOpenChange={setLogsOpen}>
-        <SheetContent className="w-[88%] max-w-[1100px] overflow-y-auto scrollbar-thin p-5 sm:max-w-[1100px]">
-          <SheetHeader className="px-0">
-            <SheetTitle className="text-base">系统管理 · 操作日志</SheetTitle>
-          </SheetHeader>
-          <div className="px-0 pb-6">
-            <LogsPage />
+      <div className="min-h-0">
+        {view === "users" && <UsersPage />}
+        {view === "logs" && <LogsPage />}
+        {view === "settings" && (
+          <div className="border border-border bg-card p-4">
+            <SettingsPanel />
           </div>
-        </SheetContent>
-      </Sheet>
+        )}
+        {view === "db" && (
+          <div className="border border-border bg-card p-4">
+            <DbPanel />
+          </div>
+        )}
+        {view === "tasks" && (
+          <div className="border border-border bg-card p-4">
+            <TasksPanel />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

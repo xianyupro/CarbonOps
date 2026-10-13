@@ -3,6 +3,7 @@
 import * as React from "react";
 import {
   Activity,
+  Settings,
   Boxes,
   Database,
   Gauge,
@@ -30,6 +31,13 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { api, ApiError } from "@/lib/api";
 import { cn, formatDate, formatNumber } from "@/lib/utils";
@@ -398,7 +406,10 @@ export default function DashboardPage() {
   const [overview, setOverview] = React.useState<DashboardOverview | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
-  const [industry, setIndustry] = React.useState("");
+  const [industry, setIndustry] = React.useState(
+    () => localStorage.getItem("kiln_dashboard_industry") ?? ""
+  );
+  const [settingsOpen, setSettingsOpen] = React.useState(false);
 
   // Recipe state
   const [recipes, setRecipes] = React.useState<FormConfig[]>([]);
@@ -481,7 +492,9 @@ export default function DashboardPage() {
 
   // Handlers
   const handleIndustryChange = (val: string) => {
-    setIndustry(val === "all" ? "" : val);
+    const ind = val === "all" ? "" : val;
+    setIndustry(ind);
+    localStorage.setItem("kiln_dashboard_industry", ind);
   };
 
   const handleEditDashboard = async () => {
@@ -540,20 +553,13 @@ export default function DashboardPage() {
 
       {/* Top action bar */}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <span className="text-sm text-muted-foreground">维度:</span>
-          <Select value={industry || "all"} onValueChange={handleIndustryChange}>
-            <SelectTrigger className="w-36 shadow-card-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {INDUSTRY_FILTER_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex items-center gap-2">
+          <span className="rounded-sm border border-border bg-muted px-2 py-1 font-cyber text-[11px] text-muted-foreground">
+            维度 · {INDUSTRY_FILTER_OPTIONS.find((o) => o.value === industry)?.label ?? "全部行业"}
+          </span>
+          <Button variant="outline" size="sm" onClick={() => setSettingsOpen(true)}>
+            <Settings className="mr-1 h-3.5 w-3.5" /> 设置
+          </Button>
         </div>
         <div className="flex items-center gap-2">
           {recipes.length > 1 && (
@@ -818,6 +824,31 @@ export default function DashboardPage() {
           }}
         />
       ) : null}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base">驾驶舱维度设置</DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-muted-foreground">
+            选择运行总览展示的行业维度，保存后立即生效并持久保存。
+          </p>
+          <div className="space-y-1.5">
+            <Label className="text-xs font-medium">行业维度</Label>
+            <Select value={industry || "all"} onValueChange={handleIndustryChange}>
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {INDUSTRY_FILTER_OPTIONS.map((opt) => (
+                  <SelectItem key={opt.value || "all"} value={opt.value || "all"}>
+                    {opt.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

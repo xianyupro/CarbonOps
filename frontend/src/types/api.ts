@@ -951,3 +951,30 @@ export interface ScreenConfigItem {
   updatedAt: string;
   createdAt: string;
 }
+
+// ===================== 系统管理扩展 =====================
+
+export interface DbTableStat {
+  table: string;
+  rows: number;
+}
+
+export interface DbStats {
+  fileSize: number;
+  tables: DbTableStat[];
+  backupDir: string;
+}
+
+export interface DbBackup {
+  name: string;
+  size: number;
+  modifiedAt: string;
+}
+
+export interface SystemTask {
+  key: string;
+  name: string;
+  cycle: string;
+  enabled: boolean;
+  description: string;
+}

@@ -9,11 +9,13 @@
  * 数据驱动：筒体转速∝主电机频率；给料盘与料流∝给料频率；火焰强度∝窑头温度；
  *          筒体轴向着色=温度场曲线（计算点01.Temp_01）。
  * 扩展能力：过温告警环（>1050℃ 脉冲红环）/ 球团仓落料 / 烟气流向粒子（橙→青渐变）/
- *          设备名称标签 / 相机预设视角飞行 / 自动巡游 / 温度场图例。
+ *          设备名称标签 / 相机预设视角飞行 / 自动巡游 / 温度场图例 /
+ *          关键设备点击信息卡（窑头罩/给料圆盘/余热锅炉/电收尘/烟囱）/
+ *          透视模式窑内物料推移粒子（速度∝给料频率）/ 烟囱烟气淡入淡出柔和化。
  */
 
 import * as React from "react";
-import { Canvas, useFrame, useThree } from "@react-three/fiber";
+import { Canvas, useFrame, useThree, type ThreeEvent } from "@react-three/fiber";
 import { Html, OrbitControls, Grid } from "@react-three/drei";
 import * as THREE from "three";
 
@@ -23,7 +25,127 @@ export interface KilnTelemetry {
   feedFreq: number | null; // 给料机频率 Hz
   motorFreq: number | null; // 主电机频率 Hz
   co: number | null; // CO 浓度 %
+  boilerPressure: number | null; // 余热锅炉锅筒压力 MPa
+  fanValve: number | null; // 增压风机进口阀门开度反馈值 %
+  drumLevel: number | null; // 1#锅筒液位 mm
   tempField: [number, number][] | null; // 温度场曲线 [位置m, 温度℃]
+}
+
+type TelemetryNumField = Exclude<keyof KilnTelemetry, "tempField">;
+
+/** 可点击设备 ID：窑头罩 / 圆盘给料机 / 余热锅炉 / 电收尘器 / 烟囱 */
+export type TwinDeviceId = "kilnHead" | "feeder" | "boiler" | "esp" | "stack";
+
+export interface TwinDeviceMetric {
+  label: string;
+  value: string;
+  unit: string;
+}
+
+/** 设备信息卡数据（点击场景设备后弹出） */
+export interface TwinDeviceInfo {
+  id: TwinDeviceId;
+  name: string;
+  role: string;
+  description: string;
+  metrics: TwinDeviceMetric[];
+}
+
+/** 设备静态档案（工艺作用 + 说明 + 关联实时点位） */
+const DEVICE_META: Record<
+  TwinDeviceId,
+  {
+    name: string;
+    role: string;
+    description: string;
+    metrics: { label: string; field: TelemetryNumField; unit: string; digits: number }[];
+  }
+> = {
+  kilnHead: {
+    name: "窑头罩",
+    role: "燃烧与窑端密封",
+    description:
+      "承载燃烧器向窑内喷入燃料与一次风，为焙烧带提供主要热源；罩内维持微负压防止高温烟气外逸。窑头温度反映燃烧强度与物料烧成状态，CO 浓度用于监控燃烧完全程度。",
+    metrics: [
+      { label: "窑头温度", field: "headTemp", unit: "℃", digits: 1 },
+      { label: "CO 浓度", field: "co", unit: "%", digits: 3 },
+    ],
+  },
+  feeder: {
+    name: "圆盘给料机",
+    role: "入窑物料计量给料",
+    description:
+      "按设定频率将球团均匀给入窑尾，给料量与窑速、温度场匹配，决定料层厚度与焙烧质量；频率反馈持续偏高或剧烈波动时，需关注下料口堵塞与仓内料位。",
+    metrics: [{ label: "给料频率", field: "feedFreq", unit: "Hz", digits: 1 }],
+  },
+  boiler: {
+    name: "余热锅炉",
+    role: "高温烟气余热回收",
+    description:
+      "回收窑头高温烟气显热生产蒸汽，降低排烟温度与系统能耗，是全流程低碳运行的核心余热利用设备；锅筒压力与液位共同反映产汽系统的安全与稳定。",
+    metrics: [
+      { label: "锅筒压力", field: "boilerPressure", unit: "MPa", digits: 2 },
+      { label: "锅筒液位", field: "drumLevel", unit: "mm", digits: 1 },
+    ],
+  },
+  esp: {
+    name: "电收尘器",
+    role: "高压静电除尘",
+    description:
+      "高压电晕使烟气中金属氧化物粉尘荷电并沉积于集尘极，振打回收后返回配料，实现有价金属资源循环；入口 CO 超限存在燃爆风险，需与燃烧工况联锁。",
+    metrics: [
+      { label: "CO 浓度", field: "co", unit: "%", digits: 3 },
+      { label: "风机阀开度", field: "fanValve", unit: "%", digits: 1 },
+    ],
+  },
+  stack: {
+    name: "烟囱",
+    role: "净化烟气达标排放",
+    description:
+      "经余热锅炉、电收尘与脱硫塔净化后的烟气由引风机送入烟囱达标排放；烟囱抽力与增压风机进口阀门开度共同决定系统通风量与窑内负压分布。",
+    metrics: [{ label: "风机阀开度", field: "fanValve", unit: "%", digits: 1 }],
+  },
+};
+
+/** 组装设备信息卡（静态档案 + 实时点位当前值） */
+export function deviceInfo(id: TwinDeviceId, telemetry: KilnTelemetry): TwinDeviceInfo {
+  const meta = DEVICE_META[id];
+  return {
+    id,
+    name: meta.name,
+    role: meta.role,
+    description: meta.description,
+    metrics: meta.metrics.map((m) => ({
+      label: m.label,
+      value: fmt(telemetry[m.field], m.digits),
+      unit: m.unit,
+    })),
+  };
+}
+
+/** 设备 mesh 的交互 props：点击弹出信息卡 + 悬停指针光标 */
+function deviceHandlers(
+  id: TwinDeviceId,
+  telemetry: KilnTelemetry,
+  onDeviceClick?: (info: TwinDeviceInfo) => void
+): {
+  onClick: (e: ThreeEvent<MouseEvent>) => void;
+  onPointerOver: (e: ThreeEvent<PointerEvent>) => void;
+  onPointerOut: (e: ThreeEvent<PointerEvent>) => void;
+} {
+  return {
+    onClick: (e) => {
+      e.stopPropagation();
+      onDeviceClick?.(deviceInfo(id, telemetry));
+    },
+    onPointerOver: (e) => {
+      e.stopPropagation();
+      document.body.style.cursor = "pointer";
+    },
+    onPointerOut: () => {
+      document.body.style.cursor = "default";
+    },
+  };
 }
 
 const SHELL_R = 1.6;
@@ -56,8 +178,8 @@ const _cTmp = new THREE.Color();
 const _vPos = new THREE.Vector3();
 const _vTarget = new THREE.Vector3();
 
-/** 温度 → 颜色（600℃ 暗红 → 1100℃ 亮黄） */
-function tempColor(temp: number): string {
+/** 温度 → 颜色（600℃ 暗红 → 1100℃ 亮黄）；导出供图例色带复用 */
+export function tempColor(temp: number): string {
   const t = THREE.MathUtils.clamp((temp - 500) / 700, 0, 1);
   const c = new THREE.Color();
   c.setHSL(THREE.MathUtils.lerp(0.02, 0.13, t), 0.95, THREE.MathUtils.lerp(0.16, 0.6, t));
@@ -80,6 +202,43 @@ function sampleField(field: [number, number][] | null, ratio: number, fallback: 
     }
   }
   return field[field.length - 1][1];
+}
+
+/** 窑内物料推移粒子（透视模式）：小球沿窑轴从窑尾向窑头循环移动，速度∝给料频率 */
+function BedParticles({ telemetry }: { telemetry: KilnTelemetry }) {
+  const ref = React.useRef<THREE.Group>(null);
+  const N = 16;
+
+  useFrame((state) => {
+    if (!ref.current) return;
+    const rate = 0.02 + (telemetry.feedFreq ?? 0) * 0.005; // 循环周期随给料频率加快
+    const t = state.clock.elapsedTime * rate;
+    const half = SHELL_LEN / 2 - 0.9;
+    ref.current.children.forEach((p, i) => {
+      const phase = (t + i / N) % 1;
+      // 沿轴 从窑尾(-x) 向窑头(+x) 推进，贴料床高度并轻微起伏
+      p.position.x = -half + phase * half * 2;
+      p.position.y = -SHELL_R * 0.45 + Math.sin(phase * Math.PI * 2 + i) * 0.08;
+      p.position.z = Math.sin(i * 2.7) * 0.55;
+      p.scale.setScalar(0.85 + 0.3 * Math.sin(i * 1.3));
+    });
+  });
+
+  return (
+    <group ref={ref}>
+      {Array.from({ length: N }).map((_, i) => (
+        <mesh key={i}>
+          <sphereGeometry args={[0.2, 8, 8]} />
+          <meshStandardMaterial
+            color="#fdba74"
+            emissive="#ea580c"
+            emissiveIntensity={0.8}
+            roughness={0.85}
+          />
+        </mesh>
+      ))}
+    </group>
+  );
 }
 
 /** 筒体（含滚圈/齿圈）——整体绕轴线旋转；支持分段点击与透视模式 */
@@ -187,6 +346,9 @@ function KilnBody({
         </mesh>
       </group>
 
+      {/* 透视模式：窑内物料推移（窑尾→窑头，速度∝给料频率） */}
+      {xray && <BedParticles telemetry={telemetry} />}
+
       {/* 托轮（静态） */}
       {[-7.5, 7.5].flatMap((x) =>
         [-1, 1].map((side) => (
@@ -272,7 +434,13 @@ function DriveUnit({ telemetry }: { telemetry: KilnTelemetry }) {
 }
 
 /** 窑头罩 + 燃烧器火焰 */
-function KilnHead({ telemetry }: { telemetry: KilnTelemetry }) {
+function KilnHead({
+  telemetry,
+  onDeviceClick,
+}: {
+  telemetry: KilnTelemetry;
+  onDeviceClick?: (info: TwinDeviceInfo) => void;
+}) {
   const flameRef = React.useRef<THREE.Mesh>(null);
   const lightRef = React.useRef<THREE.PointLight>(null);
   const headX = SHELL_LEN / 2 + 1.6;
@@ -289,8 +457,8 @@ function KilnHead({ telemetry }: { telemetry: KilnTelemetry }) {
 
   return (
     <group position={[headX, KILN_Y + TILT * headX, 0]}>
-      {/* 窑头罩 */}
-      <mesh position={[0.9, 0.4, 0]}>
+      {/* 窑头罩（可点击查看工艺详情） */}
+      <mesh position={[0.9, 0.4, 0]} {...deviceHandlers("kilnHead", telemetry, onDeviceClick)}>
         <boxGeometry args={[3.2, 4.4, 4.4]} />
         <meshStandardMaterial color="#334155" metalness={0.5} roughness={0.55} />
       </mesh>
@@ -315,7 +483,13 @@ function KilnHead({ telemetry }: { telemetry: KilnTelemetry }) {
 }
 
 /** 窑尾给料：圆盘给料机 + 料流 */
-function FeedEnd({ telemetry }: { telemetry: KilnTelemetry }) {
+function FeedEnd({
+  telemetry,
+  onDeviceClick,
+}: {
+  telemetry: KilnTelemetry;
+  onDeviceClick?: (info: TwinDeviceInfo) => void;
+}) {
   const discRef = React.useRef<THREE.Mesh>(null);
   const beadsRef = React.useRef<THREE.Group>(null);
   const siloBeadsRef = React.useRef<THREE.Group>(null);
@@ -386,9 +560,13 @@ function FeedEnd({ telemetry }: { telemetry: KilnTelemetry }) {
           ))}
         </group>
       </group>
-      {/* 圆盘给料机（上方） */}
+      {/* 圆盘给料机（上方，可点击查看工艺详情） */}
       <group position={[-3.4, 3.4, 0]}>
-        <mesh ref={discRef} rotation={[0, 0, 0]}>
+        <mesh
+          ref={discRef}
+          rotation={[0, 0, 0]}
+          {...deviceHandlers("feeder", telemetry, onDeviceClick)}
+        >
           <cylinderGeometry args={[1.5, 1.5, 0.22, 26]} />
           <meshStandardMaterial color="#475569" metalness={0.7} roughness={0.35} />
         </mesh>
@@ -504,7 +682,13 @@ function SlagQuench({ telemetry }: { telemetry: KilnTelemetry }) {
 }
 
 /** 烟气处理：余热锅炉 → 电收尘 → 脱硫塔 → 引风机 → 烟囱（烟气粒子） */
-function GasTrain({ telemetry }: { telemetry: KilnTelemetry }) {
+function GasTrain({
+  telemetry,
+  onDeviceClick,
+}: {
+  telemetry: KilnTelemetry;
+  onDeviceClick?: (info: TwinDeviceInfo) => void;
+}) {
   const smokeRef = React.useRef<THREE.Group>(null);
   const fanRef = React.useRef<THREE.Group>(null);
 
@@ -513,11 +697,14 @@ function GasTrain({ telemetry }: { telemetry: KilnTelemetry }) {
       const t = state.clock.elapsedTime * 0.5;
       smokeRef.current.children.forEach((p, i) => {
         const phase = (t + i / smokeRef.current!.children.length) % 1;
-        p.position.y = phase * 7;
-        p.position.x = Math.sin(phase * 5 + i) * 0.35;
-        const s = 0.5 + phase * 1.4;
+        p.position.y = phase * 7.2;
+        p.position.x = Math.sin(phase * 4.5 + i) * 0.45;
+        // 柔和烟气：上升过程中逐渐放大 + 透明度渐隐（源头淡入、顶端淡出）
+        const s = 0.45 + phase * 1.9;
         p.scale.setScalar(s);
-        (p as THREE.Mesh).visible = phase < 0.9;
+        const mat = (p as THREE.Mesh).material as THREE.MeshStandardMaterial;
+        mat.opacity = 0.52 * Math.min(1, phase * 5) * (1 - phase);
+        (p as THREE.Mesh).visible = phase < 0.95;
       });
     }
     // 引风机叶轮恒速旋转（机组运行状态）
@@ -526,9 +713,9 @@ function GasTrain({ telemetry }: { telemetry: KilnTelemetry }) {
 
   return (
     <group position={[SHELL_LEN / 2 + 4.5, 0, 0]}>
-      {/* 余热锅炉 */}
+      {/* 余热锅炉（可点击查看工艺详情） */}
       <group position={[2.5, 0, -3.5]}>
-        <mesh position={[0, 3, 0]}>
+        <mesh position={[0, 3, 0]} {...deviceHandlers("boiler", telemetry, onDeviceClick)}>
           <boxGeometry args={[4.2, 6, 3.4]} />
           <meshStandardMaterial color="#475569" metalness={0.55} roughness={0.5} />
         </mesh>
@@ -538,9 +725,9 @@ function GasTrain({ telemetry }: { telemetry: KilnTelemetry }) {
           <meshStandardMaterial color="#94a3b8" metalness={0.7} roughness={0.35} />
         </mesh>
       </group>
-      {/* 电收尘器 */}
+      {/* 电收尘器（可点击查看工艺详情） */}
       <group position={[8.5, 0, -3.5]}>
-        <mesh position={[0, 3.2, 0]}>
+        <mesh position={[0, 3.2, 0]} {...deviceHandlers("esp", telemetry, onDeviceClick)}>
           <cylinderGeometry args={[1.7, 1.9, 6.4, 20]} />
           <meshStandardMaterial color="#54627a" metalness={0.6} roughness={0.45} />
         </mesh>
@@ -615,9 +802,9 @@ function GasTrain({ telemetry }: { telemetry: KilnTelemetry }) {
           <meshStandardMaterial color="#1d4ed8" metalness={0.55} roughness={0.45} />
         </mesh>
       </group>
-      {/* 烟囱 + 烟气 */}
+      {/* 烟囱 + 烟气（烟囱可点击查看工艺详情） */}
       <group position={[16.2, 0, -3.5]}>
-        <mesh position={[0, 5.5, 0]}>
+        <mesh position={[0, 5.5, 0]} {...deviceHandlers("stack", telemetry, onDeviceClick)}>
           <cylinderGeometry args={[0.55, 0.75, 11, 14]} />
           <meshStandardMaterial color="#6b7280" metalness={0.4} roughness={0.6} />
         </mesh>
@@ -625,7 +812,7 @@ function GasTrain({ telemetry }: { telemetry: KilnTelemetry }) {
           {Array.from({ length: 7 }).map((_, i) => (
             <mesh key={i}>
               <sphereGeometry args={[0.42, 8, 8]} />
-              <meshStandardMaterial color="#cbd5e1" transparent opacity={0.5} />
+              <meshStandardMaterial color="#d3dce6" transparent opacity={0.45} depthWrite={false} />
             </mesh>
           ))}
         </group>
@@ -760,7 +947,7 @@ function CameraRig({ view }: { view: { key: number; preset: ViewPreset } | null 
   return null;
 }
 
-/** 预设视角（世界坐标）：全景 / 给料端 / 焙烧区 / 窑头出料 / 烟气净化 */
+/** 预设视角（世界坐标，场景组含 -4 x 偏移）：全景 / 窑头特写 / 窑尾特写 / 烟气处理 */
 export interface ViewPreset {
   name: string;
   pos: [number, number, number];
@@ -769,10 +956,9 @@ export interface ViewPreset {
 
 export const VIEW_PRESETS: Record<string, ViewPreset> = {
   overview: { name: "全景", pos: [30, 14, 26], target: [2, 4, 0] },
-  feed: { name: "给料端", pos: [-26, 10, 13], target: [-16, 6, 0] },
-  roast: { name: "焙烧区", pos: [-4, 9, 15], target: [-8, 4.5, 0] },
-  head: { name: "窑头出料", pos: [17, 8, 14], target: [11, 3, 1] },
-  gas: { name: "烟气净化", pos: [33, 13, 13], target: [21, 6, -2] },
+  headClose: { name: "窑头特写", pos: [16, 7.5, 10], target: [9.5, 3.6, 0] },
+  tailClose: { name: "窑尾特写", pos: [-28, 9.5, 12], target: [-17.5, 5, 0] },
+  gas: { name: "烟气处理", pos: [33, 12, 14], target: [21, 6, -3] },
 };
 
 /** 数据悬浮标签 */
@@ -826,6 +1012,7 @@ export function KilnTwin({
   autoRotate = false,
   view = null,
   onSegmentClick,
+  onDeviceClick,
 }: {
   telemetry: KilnTelemetry;
   showLabels?: boolean;
@@ -840,6 +1027,8 @@ export function KilnTwin({
   /** 相机预设视角（key 变化触发一次平滑飞行） */
   view?: { key: number; preset: ViewPreset } | null;
   onSegmentClick?: (index: number, temp: number) => void;
+  /** 点击场景设备（窑头罩/给料圆盘/余热锅炉/电收尘/烟囱）弹出信息卡 */
+  onDeviceClick?: (info: TwinDeviceInfo) => void;
 }) {
   const bg = night ? "#0b1220" : "#eef4f4";
   return (
@@ -860,11 +1049,11 @@ export function KilnTwin({
 
       <group position={[-4, 0, 0]}>
         <KilnBody telemetry={telemetry} xray={xray} onSegmentClick={onSegmentClick} />
-        <KilnHead telemetry={telemetry} />
-        <FeedEnd telemetry={telemetry} />
+        <KilnHead telemetry={telemetry} onDeviceClick={onDeviceClick} />
+        <FeedEnd telemetry={telemetry} onDeviceClick={onDeviceClick} />
         <DriveUnit telemetry={telemetry} />
         <SlagQuench telemetry={telemetry} />
-        <GasTrain telemetry={telemetry} />
+        <GasTrain telemetry={telemetry} onDeviceClick={onDeviceClick} />
       </group>
 
       {/* 地面 */}
