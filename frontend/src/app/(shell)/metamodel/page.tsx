@@ -10,11 +10,11 @@ import { FilePlus2, Network } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { ModuleToolbar } from "@/components/layout/ModuleToolbar";
 
 const GraphPage = dynamic(() => import("@/app/(shell)/metamodel/graph/page"), {
@@ -64,24 +64,21 @@ export default function MetamodelHubPage() {
       {/* 主工作区：知识图谱 */}
       <GraphPage />
 
-      {/* 二级功能子窗口：登记与检索中心均为全屏 */}
-      <Sheet open={sub != null} onOpenChange={(o) => !o && setSub(null)}>
-        <SheetContent
-          side="top"
-          className="h-full w-full max-w-none border-0 p-6 sm:max-w-none"
-        >
-          <SheetHeader className="px-0">
-            <SheetTitle className="text-base">
+      {/* 二级功能子窗口（居中弹窗） */}
+      <Dialog open={sub != null} onOpenChange={(o) => !o && setSub(null)}>
+        <DialogContent className="flex h-[86vh] max-w-[min(1280px,94vw)] flex-col p-5">
+          <DialogHeader className="px-0">
+            <DialogTitle className="text-base">
               ② 元模型平台 ·{" "}
               {sub === "library" ? "元模型学术检索中心" : "元模型登记录入"}
-            </SheetTitle>
-          </SheetHeader>
-          <div className="h-[calc(100vh-5rem)] overflow-y-auto scrollbar-thin pb-6">
+            </DialogTitle>
+          </DialogHeader>
+          <div className="min-h-0 flex-1 overflow-y-auto scrollbar-thin pr-1">
             {sub === "library" && <LibraryPage />}
             {sub === "registry" && <RegistryPage />}
           </div>
-        </SheetContent>
-      </Sheet>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
