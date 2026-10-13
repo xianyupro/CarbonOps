@@ -5,7 +5,9 @@ backend/__pycache__/
 backend/uploads/
 *.pyc
 
-# Database backups（主库 backend/carbonops.db 经 Git LFS 入库）
+# Database（db 文件不再提交——用户要求 2026-10-13；历史 commit 8f45a36 经 LFS 留有一版）
+backend/carbonops.db
+backend/*.db
 backend/backups/
 
 # Node / Next.js
