@@ -64,35 +64,24 @@ export default function MetamodelHubPage() {
       {/* 主工作区：知识图谱 */}
       <GraphPage />
 
-      {/* 二级功能子窗口：登记为全屏，库为宽侧窗 */}
-      {sub === "registry" ? (
-        <Sheet open onOpenChange={(o) => !o && setSub(null)}>
-          <SheetContent
-            side="top"
-            className="h-full w-full max-w-none border-0 p-6 sm:max-w-none"
-          >
-            <SheetHeader className="px-0">
-              <SheetTitle className="text-base">
-                ② 元模型平台 · 元模型登记录入
-              </SheetTitle>
-            </SheetHeader>
-            <div className="h-[calc(100vh-5rem)] overflow-y-auto scrollbar-thin pb-6">
-              <RegistryPage />
-            </div>
-          </SheetContent>
-        </Sheet>
-      ) : (
-        <Sheet open={sub != null} onOpenChange={(o) => !o && setSub(null)}>
-          <SheetContent className="w-[88%] max-w-[1100px] overflow-y-auto scrollbar-thin p-5 sm:max-w-[1100px]">
-            <SheetHeader className="px-0">
-              <SheetTitle className="text-base">
-                ② 元模型平台 · 元模型库
-              </SheetTitle>
-            </SheetHeader>
-            <div className="px-0 pb-6">{sub === "library" && <LibraryPage />}</div>
-          </SheetContent>
-        </Sheet>
-      )}
+      {/* 二级功能子窗口：登记与检索中心均为全屏 */}
+      <Sheet open={sub != null} onOpenChange={(o) => !o && setSub(null)}>
+        <SheetContent
+          side="top"
+          className="h-full w-full max-w-none border-0 p-6 sm:max-w-none"
+        >
+          <SheetHeader className="px-0">
+            <SheetTitle className="text-base">
+              ② 元模型平台 ·{" "}
+              {sub === "library" ? "元模型学术检索中心" : "元模型登记录入"}
+            </SheetTitle>
+          </SheetHeader>
+          <div className="h-[calc(100vh-5rem)] overflow-y-auto scrollbar-thin pb-6">
+            {sub === "library" && <LibraryPage />}
+            {sub === "registry" && <RegistryPage />}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }
